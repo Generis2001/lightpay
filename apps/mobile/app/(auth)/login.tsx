@@ -88,7 +88,7 @@ export default function LoginScreen() {
       await api.post('/auth/login/request', { identifier: phone, method: 'phone' });
       setPendingPhone(phone);
       setAuthMethod('phone');
-      router.push({ pathname: '/auth/verify-otp', params: { purpose: 'login' } });
+      router.push({ pathname: '/(auth)/verify-otp', params: { purpose: 'login' } });
     } catch (error) {
       Toast.show({ type: 'error', text1: 'Login Failed', text2: getErrorMessage(error) });
     } finally {
@@ -105,7 +105,7 @@ export default function LoginScreen() {
       });
       setPendingEmail(data.email.trim().toLowerCase());
       setAuthMethod('email');
-      router.push({ pathname: '/auth/verify-otp', params: { purpose: 'login' } });
+      router.push({ pathname: '/(auth)/verify-otp', params: { purpose: 'login' } });
     } catch (error) {
       Toast.show({ type: 'error', text1: 'Login Failed', text2: getErrorMessage(error) });
     } finally {
@@ -219,7 +219,7 @@ export default function LoginScreen() {
 
           <View style={styles.signupRow}>
             <Text style={styles.signupText}>Don't have an account? </Text>
-            <TouchableOpacity onPress={() => router.replace('/auth/register')}>
+            <TouchableOpacity onPress={() => router.replace('/(auth)/register')}>
               <Text style={styles.signupLink}>Create one</Text>
             </TouchableOpacity>
           </View>

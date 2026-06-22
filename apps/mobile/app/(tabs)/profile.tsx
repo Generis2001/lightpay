@@ -68,7 +68,7 @@ export default function ProfileScreen() {
             await api.post('/auth/logout');
           } catch (_) {}
           logout();
-          router.replace('/auth/login');
+          router.replace('/(auth)/login');
         },
       },
     ]);
@@ -139,13 +139,13 @@ export default function ProfileScreen() {
             <MenuItem
               icon={<Lock size={20} color={Colors.ink.DEFAULT} />}
               label="Change PIN"
-              onPress={() => router.push('/auth/create-pin')}
+              onPress={() => router.push('/(auth)/create-pin')}
             />
             <MenuItem
               icon={<Fingerprint size={20} color={Colors.ink.DEFAULT} />}
               label="Biometric Login"
               sublabel="Fingerprint / Face ID"
-              onPress={() => router.push('/auth/setup-biometric')}
+              onPress={() => router.push('/(auth)/setup-biometric')}
             />
             <MenuItem
               icon={<CurrencyNgn size={20} color={Colors.ink.DEFAULT} />}

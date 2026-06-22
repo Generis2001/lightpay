@@ -28,7 +28,7 @@ export default function QrScanScreen() {
       if (payload.type === 'lightpay_receive') {
         // Internal LightPay QR — pre-fill send money
         router.replace({
-          pathname: '/modals/send-money',
+          pathname: '/(modals)/send-money',
           params: {
             prefillAccount: payload.accountNumber,
             prefillName: payload.name,
@@ -38,7 +38,7 @@ export default function QrScanScreen() {
       } else if (payload.accountNumber && payload.bankCode) {
         // Generic bank QR
         router.replace({
-          pathname: '/modals/send-money',
+          pathname: '/(modals)/send-money',
           params: {
             prefillAccount: payload.accountNumber,
             prefillBankCode: payload.bankCode,

@@ -55,7 +55,7 @@ export default function BuyDataScreen() {
       }),
     onSuccess: () => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace('/modals/transfer-success' as any);
+      router.replace('/(modals)/transfer-success');
     },
     onError: (err: any) => {
       const msg = err.response?.data?.message ?? 'Data purchase failed';

@@ -66,7 +66,7 @@ export default function RegisterScreen() {
       setPendingPhone(phone);
       setPendingEmail(null);
       setAuthMethod('phone');
-      router.push({ pathname: '/auth/verify-otp', params: { purpose: 'registration' } });
+      router.push({ pathname: '/(auth)/verify-otp', params: { purpose: 'registration' } });
     } catch (error) {
       Toast.show({ type: 'error', text1: 'Registration Failed', text2: getErrorMessage(error) });
     } finally {
@@ -84,7 +84,7 @@ export default function RegisterScreen() {
       setPendingEmail(data.email.trim().toLowerCase());
       setPendingPhone(null);
       setAuthMethod('email');
-      router.push({ pathname: '/auth/verify-otp', params: { purpose: 'registration' } });
+      router.push({ pathname: '/(auth)/verify-otp', params: { purpose: 'registration' } });
     } catch (error) {
       Toast.show({ type: 'error', text1: 'Registration Failed', text2: getErrorMessage(error) });
     } finally {
@@ -223,7 +223,7 @@ export default function RegisterScreen() {
 
           <View style={styles.loginRow}>
             <Text style={styles.loginText}>Already have an account? </Text>
-            <TouchableOpacity onPress={() => router.replace('/auth/login')}>
+            <TouchableOpacity onPress={() => router.replace('/(auth)/login')}>
               <Text style={styles.loginLink}>Sign In</Text>
             </TouchableOpacity>
           </View>

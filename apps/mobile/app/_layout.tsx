@@ -54,6 +54,7 @@ export default function RootLayout() {
         <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="(modals)" options={{ headerShown: false }} />
           <Stack.Screen name="+not-found" />
         </Stack>
         <Toast config={toastConfig} />

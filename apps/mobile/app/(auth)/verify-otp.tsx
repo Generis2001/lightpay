@@ -68,7 +68,7 @@ export default function VerifyOtpScreen() {
           if (data.data.user) {
             setUser(data.data.user);
           }
-          router.push('/auth/create-pin');
+          router.push('/(auth)/create-pin');
         } else {
           const { user, tokens } = data.data;
           setUser(user);
@@ -76,7 +76,7 @@ export default function VerifyOtpScreen() {
           if (user.hasPin) {
             router.replace('/(tabs)/home');
           } else {
-            router.push('/auth/create-pin');
+            router.push('/(auth)/create-pin');
           }
         }
       } catch (error) {

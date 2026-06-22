@@ -60,12 +60,12 @@ export default function GetStartedScreen() {
         <View style={styles.actions}>
           <Button
             title="Create Account"
-            onPress={() => router.push('/auth/register')}
+            onPress={() => router.push('/(auth)/register')}
             variant="primary"
           />
           <Button
             title="I Already Have an Account"
-            onPress={() => router.push('/auth/login')}
+            onPress={() => router.push('/(auth)/login')}
             variant="ghost"
             style={styles.loginButton}
           />

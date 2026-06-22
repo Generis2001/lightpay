@@ -13,7 +13,7 @@ export default function CreatePinScreen() {
   const { setPendingPin } = useAuthStore() as any;
 
   const handleComplete = (value: string) => {
-    router.push({ pathname: '/auth/confirm-pin', params: { pin: value } });
+    router.push({ pathname: '/(auth)/confirm-pin', params: { pin: value } });
   };
 
   return (

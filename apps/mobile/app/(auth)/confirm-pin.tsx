@@ -31,7 +31,7 @@ export default function ConfirmPinScreen() {
       setTokens(data.data.tokens.accessToken, data.data.tokens.refreshToken);
       setUser(data.data.user);
       setPinSet(true);
-      router.push('/auth/setup-biometric');
+      router.push('/(auth)/setup-biometric');
     } catch (error) {
       Toast.show({ type: 'error', text1: 'Failed to set PIN', text2: getErrorMessage(error) });
       setConfirmPin('');

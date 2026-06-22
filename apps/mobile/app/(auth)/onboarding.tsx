@@ -73,12 +73,12 @@ export default function OnboardingScreen() {
 
   const handleGetStarted = () => {
     setOnboardingComplete();
-    router.replace('/auth/get-started');
+    router.replace('/(auth)/get-started');
   };
 
   const handleSkip = () => {
     setOnboardingComplete();
-    router.replace('/auth/get-started');
+    router.replace('/(auth)/get-started');
   };
 
   return (

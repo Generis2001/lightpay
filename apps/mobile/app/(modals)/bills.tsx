@@ -104,7 +104,7 @@ export default function BillsScreen() {
       }),
     onSuccess: () => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace('/modals/transfer-success' as any);
+      router.replace('/(modals)/transfer-success');
     },
     onError: (err: any) => {
       setPinError(err.response?.data?.message ?? 'Payment failed');
@@ -124,7 +124,7 @@ export default function BillsScreen() {
       }),
     onSuccess: () => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace('/modals/transfer-success' as any);
+      router.replace('/(modals)/transfer-success');
     },
     onError: (err: any) => {
       setPinError(err.response?.data?.message ?? 'Payment failed');
