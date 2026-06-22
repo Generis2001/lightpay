@@ -66,7 +66,7 @@ const PLACEHOLDER: Notification[] = [
     id: '3',
     type: 'security',
     title: 'New Device Login',
-    body: 'Your account was accessed from a new device. If this wasn't you, secure your account immediately.',
+    body: "Your account was accessed from a new device. If this wasn't you, secure your account immediately.",
     isRead: true,
     createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
   },

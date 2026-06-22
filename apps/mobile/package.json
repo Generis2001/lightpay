@@ -49,11 +49,13 @@
     "expo-status-bar": "~2.0.1",
     "expo-system-ui": "~4.0.7",
     "immer": "^10.1.1",
+    "nanoid": "^5.1.15",
     "nativewind": "^4.1.23",
     "phosphor-react-native": "^2.2.1",
     "react": "18.3.1",
     "react-hook-form": "^7.54.2",
     "react-native": "0.76.9",
+    "react-native-gesture-handler": "~2.21.2",
     "react-native-reanimated": "~3.16.3",
     "react-native-safe-area-context": "4.12.0",
     "react-native-screens": "~4.4.0",
@@ -65,7 +67,9 @@
   },
   "expo": {
     "install": {
-      "exclude": ["@expo/vector-icons"]
+      "exclude": [
+        "@expo/vector-icons"
+      ]
     }
   },
   "devDependencies": {
