@@ -1,7 +1,10 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { WalletsService } from '../wallets/wallets.service';
+import { Transaction } from '../transactions/transaction.entity';
 import { generateReference } from '../common/utils';
 
 @Injectable()
@@ -11,6 +14,8 @@ export class BillsService {
   constructor(
     private readonly config: ConfigService,
     private readonly walletsService: WalletsService,
+    @InjectRepository(Transaction)
+    private readonly txRepo: Repository<Transaction>,
   ) {}
 
   async getAirtimeNetworks() {
@@ -81,9 +86,12 @@ export class BillsService {
     });
 
     if (result.success) {
-      const { getRepository } = await import('typeorm');
-      // Update transaction status
-      return { transaction: tx, providerRef: result.requestId, status: 'completed' };
+      await this.txRepo.update(tx.id, {
+        status: 'completed',
+        providerRef: result.requestId,
+        completedAt: new Date(),
+      });
+      return { transaction: { ...tx, status: 'completed' }, providerRef: result.requestId, status: 'completed' };
     } else {
       await this.walletsService.reverseTransaction(tx.id, params.userId);
       throw new BadRequestException({

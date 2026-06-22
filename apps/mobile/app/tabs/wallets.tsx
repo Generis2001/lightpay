@@ -43,7 +43,7 @@ export default function WalletsScreen() {
             <Text style={styles.walletCurrencyLabel}>Nigerian Naira</Text>
             <Text style={styles.walletBalance}>
               {balanceVisible
-                ? formatNaira(nairaWallet?.balance ? parseFloat(nairaWallet.balance) : 0)
+                ? formatNaira(nairaWallet?.balance ?? '0')
                 : maskBalance(0, 'NGN')}
             </Text>
             <View style={styles.walletCardBottom}>

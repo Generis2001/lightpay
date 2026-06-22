@@ -21,7 +21,6 @@ import type {
   RegisterEmailDto,
   LoginRequestDto,
   VerifyOtpDto,
-  SetPinDto,
   RefreshTokenDto,
   EnableBiometricDto,
   ChangePinDto,
@@ -171,12 +170,6 @@ export class AuthService {
       purpose: dto.purpose,
     });
     return ApiResponse.success({ sent: true }, 'OTP resent');
-  }
-
-  async setPin(dto: SetPinDto, deviceId?: string): Promise<ApiResponse> {
-    // In real implementation, get userId from a pending registration token
-    // For now, find user by recent registration (simplified)
-    throw new BadRequestException('User context required — pass JWT from registration flow');
   }
 
   async setPinForUser(userId: string, pin: string, deviceId?: string): Promise<ApiResponse> {

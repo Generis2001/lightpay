@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards, Req, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Request } from 'express';
@@ -66,9 +66,7 @@ export class TransactionsController {
     const tx = await this.txRepo.findOne({
       where: { id, userId: req.user.sub },
     });
-    if (!tx) {
-      return { success: false, message: 'Transaction not found' };
-    }
+    if (!tx) throw new NotFoundException('Transaction not found');
     return successResponse(tx);
   }
 }

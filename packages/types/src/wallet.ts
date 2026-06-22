@@ -6,8 +6,8 @@ export interface Wallet {
   userId: string;
   type: WalletType;
   currency: Currency;
-  balance: number;
-  ledgerBalance: number;
+  balance: string;
+  ledgerBalance: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

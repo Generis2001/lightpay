@@ -54,10 +54,11 @@ export class TransfersController {
       bankCode: dto.bankCode,
       bankName: dto.bankName,
       accountName: dto.recipientName,
-      amount: dto.amount as unknown as string,
+      amount: dto.amount,
       narration: dto.narration,
       saveBeneficiary: true,
-    } as any);
+      pin: dto.pin,
+    });
 
     return successResponse(receipt, 'Transfer initiated successfully');
   }

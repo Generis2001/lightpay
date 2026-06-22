@@ -126,7 +126,7 @@ export default function HomeScreen() {
   };
 
   const recentTransactions: TransactionListItem[] = transactionsData?.data ?? [];
-  const balance = nairaWallet?.balance ?? 0;
+  const balance = nairaWallet?.balance ?? '0';
   const firstName = user?.firstName ?? 'there';
 
   return (

@@ -40,7 +40,7 @@ export class TransfersService {
   }
 
   async bankTransfer(userId: string, dto: BankTransferRequest & { walletId: string }): Promise<Transaction> {
-    const amount = parseFloat(dto.amount as unknown as string);
+    const amount = dto.amount;
     const fee = this.calculateFee(amount);
     const reference = generateReference('NIP');
 
@@ -92,7 +92,7 @@ export class TransfersService {
   ): Promise<void> {
     try {
       const result = await this.paystackProvider.initiateTransfer({
-        amount: parseFloat(dto.amount as unknown as string),
+        amount: dto.amount,
         bankCode: dto.bankCode,
         accountNumber: dto.accountNumber,
         accountName: dto.accountName,

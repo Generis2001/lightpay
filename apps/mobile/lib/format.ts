@@ -1,36 +1,47 @@
 import { format, formatDistanceToNow, isToday, isYesterday } from 'date-fns';
 
-export const formatNaira = (amount: number, hideDecimals = false): string => {
-  const formatted = new Intl.NumberFormat('en-NG', {
+const toNum = (amount: string | number): number =>
+  typeof amount === 'string' ? parseFloat(amount) : amount;
+
+export const formatNaira = (amount: string | number, hideDecimals = false): string => {
+  return new Intl.NumberFormat('en-NG', {
     style: 'currency',
     currency: 'NGN',
     minimumFractionDigits: hideDecimals ? 0 : 2,
     maximumFractionDigits: hideDecimals ? 0 : 2,
-  }).format(amount);
-  return formatted;
+  }).format(toNum(amount));
 };
 
-export const formatUSD = (amount: number): string => {
+export const formatCurrency = (amount: string | number, decimals = 2): string => {
+  const n = toNum(amount);
+  return n.toLocaleString('en-NG', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+};
+
+export const formatUSD = (amount: string | number): string => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(amount);
+  }).format(toNum(amount));
 };
 
-export const formatCrypto = (amount: number, decimals = 8): string => {
-  return amount.toFixed(decimals).replace(/\.?0+$/, '');
+export const formatCrypto = (amount: string | number, decimals = 8): string => {
+  return toNum(amount).toFixed(decimals).replace(/\.?0+$/, '');
 };
 
-export const formatCompactNumber = (num: number): string => {
-  if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(1)}B`;
-  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
-  if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`;
-  return num.toString();
+export const formatCompactNumber = (num: string | number): string => {
+  const n = toNum(num);
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return n.toString();
 };
 
-export const maskBalance = (amount: number, currency: string): string => {
+export const maskBalance = (amount: string | number, currency: string): string => {
   if (currency === 'NGN') return '₦ *****';
   if (currency === 'USD') return '$ *****';
   return '*****';

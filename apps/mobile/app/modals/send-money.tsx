@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import debounce from 'lodash/debounce';
 import { MagnifyingGlass, Star, UserCircle } from 'phosphor-react-native';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Input } from '@/components/ui/Input';
@@ -44,7 +43,7 @@ export default function SendMoneyScreen() {
   const { data: banks = [] } = useQuery<Bank[]>({
     queryKey: ['banks'],
     queryFn: async () => {
-      const { data } = await api.get('/fiat/banks');
+      const { data } = await api.get('/transfers/banks');
       return data.data;
     },
     staleTime: Infinity,
@@ -57,26 +56,27 @@ export default function SendMoneyScreen() {
   const favourites = beneficiaries.filter((b) => b.isFavourite && b.type === 'bank').slice(0, 4);
   const recentBeneficiaries = beneficiaries.filter((b) => b.type === 'bank').slice(0, 6);
 
-  const resolveAccount = useCallback(
-    debounce(async (accNum: string, bCode: string) => {
-      if (accNum.length !== 10 || !bCode) return;
+  const debounceTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  const resolveAccount = useCallback((accNum: string, bCode: string) => {
+    if (accNum.length !== 10 || !bCode) return;
+    clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(async () => {
       setResolving(true);
       setResolveError(null);
       setResolvedAccount(null);
       try {
-        const { data } = await api.post('/fiat/resolve-account', {
-          accountNumber: accNum,
-          bankCode: bCode,
-        });
+        const { data } = await api.get(
+          `/transfers/resolve?accountNumber=${accNum}&bankCode=${bCode}`,
+        );
         setResolvedAccount(data.data);
-      } catch (_) {
+      } catch {
         setResolveError('Could not verify account. Check the details and try again.');
       } finally {
         setResolving(false);
       }
-    }, 800),
-    []
-  );
+    }, 800);
+  }, []);
 
   useEffect(() => {
     if (accountNumber.length === 10 && bankCode) {

@@ -24,10 +24,10 @@ export interface Transaction {
   walletId: string;
   type: TransactionType;
   status: TransactionStatus;
-  amount: number;
-  fee: number;
-  balanceBefore: number;
-  balanceAfter: number;
+  amount: string;
+  fee: string;
+  balanceBefore: string;
+  balanceAfter: string;
   currency: string;
   description: string | null;
   narration: string | null;
@@ -53,8 +53,8 @@ export interface TransactionListItem {
   reference: string;
   type: TransactionType;
   status: TransactionStatus;
-  amount: number;
-  fee: number;
+  amount: string;
+  fee: string;
   currency: string;
   description: string | null;
   createdAt: string;
@@ -75,6 +75,7 @@ export interface TransactionFilter {
 export interface BankTransferRequest {
   walletId: string;
   bankCode: string;
+  bankName: string;
   accountNumber: string;
   accountName: string;
   amount: number;
@@ -145,8 +146,8 @@ export interface TransactionReceipt {
   reference: string;
   type: TransactionType;
   status: TransactionStatus;
-  amount: number;
-  fee: number;
+  amount: string;
+  fee: string;
   currency: string;
   description: string;
   createdAt: string;

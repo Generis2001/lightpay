@@ -15,7 +15,7 @@ interface WalletState {
   setBeneficiaries: (beneficiaries: Beneficiary[]) => void;
   setSelectedWallet: (wallet: Wallet | null) => void;
   toggleBalanceVisibility: () => void;
-  updateWalletBalance: (walletId: string, balance: number) => void;
+  updateWalletBalance: (walletId: string, balance: string) => void;
 }
 
 export const useWalletStore = create<WalletState>((set, get) => ({

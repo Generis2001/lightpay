@@ -80,13 +80,16 @@ export class AuthController {
   }
 
   @Post('pin/set')
+  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Set transaction PIN' })
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Set transaction PIN (requires auth token from OTP verify)' })
   async setPin(
+    @Request() req: any,
     @Body() dto: SetPinDto,
     @Headers('x-device-id') deviceId?: string,
   ) {
-    return this.authService.setPin(dto, deviceId);
+    return this.authService.setPinForUser(req.user.sub, dto.pin, deviceId);
   }
 
   @Post('pin/change')
