@@ -14,9 +14,9 @@ import * as Haptics from 'expo-haptics';
 import { Phone, WifiHigh, CaretLeft, CaretRight } from 'phosphor-react-native';
 import { useAuthStore } from '../../store/auth';
 import { api } from '../../lib/api';
-import ScreenHeader from '../../components/ui/ScreenHeader';
-import Button from '../../components/ui/Button';
-import PinInput from '../../components/ui/PinInput';
+import { ScreenHeader } from '../../components/ui/ScreenHeader';
+import { Button } from '../../components/ui/Button';
+import { PinInput } from '../../components/ui/PinInput';
 import { Colors } from '../../constants/colors';
 
 const NETWORKS = [
@@ -213,7 +213,7 @@ export default function BuyDataScreen() {
             <Text className="text-[#00C853] text-sm font-['Inter']">Use my number</Text>
           </TouchableOpacity>
 
-          <Button label="Continue" onPress={handlePhoneNext} />
+          <Button title="Continue" onPress={handlePhoneNext} />
         </View>
       )}
 
@@ -234,9 +234,10 @@ export default function BuyDataScreen() {
           </Text>
 
           <PinInput
+            value={pin}
+            onChange={setPin}
             onComplete={handlePinComplete}
-            error={pinError}
-            isLoading={purchaseMutation.isPending}
+            error={!!pinError}
           />
         </View>
       )}

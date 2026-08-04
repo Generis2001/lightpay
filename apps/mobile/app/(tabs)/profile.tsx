@@ -17,7 +17,7 @@ import {
   Shield,
   QuestionMark,
   SignOut,
-  ChevronRight,
+  CaretRight,
   IdentificationCard,
   CurrencyNgn,
 } from 'phosphor-react-native';
@@ -48,7 +48,7 @@ const MenuItem: React.FC<MenuItemProps> = ({ icon, label, sublabel, onPress, dan
         <Text style={styles.badgeText}>{badge}</Text>
       </View>
     ) : (
-      <ChevronRight size={18} color={Colors.gray[300]} />
+      <CaretRight size={18} color={Colors.gray[300]} />
     )}
   </TouchableOpacity>
 );
@@ -113,7 +113,7 @@ export default function ProfileScreen() {
                 </Text>
               </View>
             </View>
-            <ChevronRight size={18} color={Colors.brand.DEFAULT} />
+            <CaretRight size={18} color={Colors.brand.DEFAULT} />
           </TouchableOpacity>
         )}
 

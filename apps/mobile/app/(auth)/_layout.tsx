@@ -11,8 +11,6 @@ export default function AuthLayout() {
       <Stack.Screen name="create-pin" />
       <Stack.Screen name="confirm-pin" />
       <Stack.Screen name="setup-biometric" />
-      <Stack.Screen name="kyc-intro" />
-      <Stack.Screen name="kyc-bvn" />
     </Stack>
   );
 }

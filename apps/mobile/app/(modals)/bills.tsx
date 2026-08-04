@@ -13,9 +13,9 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { Lightning, Television, CaretRight, CaretDown } from 'phosphor-react-native';
 import { api } from '../../lib/api';
-import ScreenHeader from '../../components/ui/ScreenHeader';
-import Button from '../../components/ui/Button';
-import PinInput from '../../components/ui/PinInput';
+import { ScreenHeader } from '../../components/ui/ScreenHeader';
+import { Button } from '../../components/ui/Button';
+import { PinInput } from '../../components/ui/PinInput';
 import { Colors } from '../../constants/colors';
 
 type BillType = 'electricity' | 'cable';
@@ -289,17 +289,17 @@ export default function BillsScreen() {
 
                 {elecStep === 'form' ? (
                   <Button
-                    label={verifyMeterMutation.isPending ? 'Verifying...' : 'Verify Meter'}
+                    title={verifyMeterMutation.isPending ? 'Verifying...' : 'Verify Meter'}
                     onPress={() => {
                       if (!disco) return Alert.alert('Select DISCO', 'Please select your distribution company');
                       if (!meterNumber) return Alert.alert('Meter Number', 'Please enter your meter number');
                       verifyMeterMutation.mutate();
                     }}
-                    isLoading={verifyMeterMutation.isPending}
+                    loading={verifyMeterMutation.isPending}
                   />
                 ) : (
                   <Button
-                    label="Pay Electricity"
+                    title="Pay Electricity"
                     onPress={() => {
                       if (!elecAmount || parseFloat(elecAmount) < 500) {
                         return Alert.alert('Amount', 'Minimum amount is ₦500');
@@ -326,9 +326,10 @@ export default function BillsScreen() {
                   </Text>
                 </View>
                 <PinInput
+                  value={pin}
+                  onChange={setPin}
                   onComplete={handleElecPinComplete}
-                  error={pinError}
-                  isLoading={payElectricityMutation.isPending}
+                  error={!!pinError}
                 />
               </View>
             )}
@@ -413,12 +414,12 @@ export default function BillsScreen() {
                   className="bg-[#1C1C2E] rounded-2xl px-4 py-3.5 text-white font-['Inter'] mb-6"
                 />
                 <Button
-                  label={verifyCardMutation.isPending ? 'Verifying...' : 'Verify Card'}
+                  title={verifyCardMutation.isPending ? 'Verifying...' : 'Verify Card'}
                   onPress={() => {
                     if (!smartCard) return Alert.alert('Smart Card', 'Enter your smart card number');
                     verifyCardMutation.mutate();
                   }}
-                  isLoading={verifyCardMutation.isPending}
+                  loading={verifyCardMutation.isPending}
                 />
               </>
             )}
@@ -437,7 +438,7 @@ export default function BillsScreen() {
                     ₦{selectedCablePlan?.amount.toLocaleString()}
                   </Text>
                 </View>
-                <Button label="Pay Now" onPress={() => setCableStep('pin')} />
+                <Button title="Pay Now" onPress={() => setCableStep('pin')} />
               </>
             )}
 
@@ -454,9 +455,10 @@ export default function BillsScreen() {
                   </Text>
                 </View>
                 <PinInput
+                  value={pin}
+                  onChange={setPin}
                   onComplete={handleCablePinComplete}
-                  error={pinError}
-                  isLoading={payCableMutation.isPending}
+                  error={!!pinError}
                 />
               </View>
             )}

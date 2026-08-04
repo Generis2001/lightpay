@@ -17,7 +17,7 @@ import {
 } from 'phosphor-react-native';
 import { api } from '../../lib/api';
 import { formatCurrency } from '../../lib/format';
-import ScreenHeader from '../../components/ui/ScreenHeader';
+import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { Colors } from '../../constants/colors';
 
 const TYPE_META: Record<string, { label: string; Icon: any; color: string }> = {

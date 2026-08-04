@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
-import { X, FlashlightFill, Flashlight, ScanQrCode } from 'phosphor-react-native';
+import { X, Flashlight, QrCode } from 'phosphor-react-native';
 import { Colors } from '../../constants/colors';
 
 export default function QrScanScreen() {
@@ -70,7 +70,7 @@ export default function QrScanScreen() {
   if (!permission.granted) {
     return (
       <View className="flex-1 bg-[#0A0A0F] items-center justify-center px-8">
-        <ScanQrCode size={64} color="rgba(255,255,255,0.3)" />
+        <QrCode size={64} color="rgba(255,255,255,0.3)" />
         <Text className="text-white text-lg font-['Inter_SemiBold'] mt-6 text-center">
           Camera Access Required
         </Text>
@@ -117,7 +117,7 @@ export default function QrScanScreen() {
           className="w-10 h-10 bg-black/40 rounded-full items-center justify-center"
         >
           {torch ? (
-            <FlashlightFill size={20} color={Colors.brand.DEFAULT} />
+            <Flashlight size={20} color={Colors.brand.DEFAULT} weight="fill" />
           ) : (
             <Flashlight size={20} color="white" />
           )}
