@@ -6,5 +6,5 @@ export class SetPinDto {
   @IsString()
   @Length(6, 6, { message: 'PIN must be exactly 6 digits' })
   @Matches(/^\d{6}$/, { message: 'PIN must contain only digits' })
-  pin: string;
+  pin!: string;
 }

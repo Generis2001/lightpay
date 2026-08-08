@@ -3,108 +3,108 @@ import { Transform } from 'class-transformer';
 
 export class PurchaseAirtimeDto {
   @IsString()
-  network: string;
+  network!: string;
 
   @IsString()
-  phone: string;
+  phone!: string;
 
   @IsNumber()
   @Min(50)
   @Transform(({ value }) => Number(value))
-  amount: number;
+  amount!: number;
 
   @IsString()
-  pin: string;
+  pin!: string;
 }
 
 export class PurchaseDataDto {
   @IsString()
-  network: string;
+  network!: string;
 
   @IsString()
-  phone: string;
+  phone!: string;
 
   @IsString()
-  planCode: string;
+  planCode!: string;
 
   @IsNumber()
   @Min(50)
   @Transform(({ value }) => Number(value))
-  amount: number;
+  amount!: number;
 
   @IsString()
-  pin: string;
+  pin!: string;
 }
 
 export class GetDataPlansDto {
   @IsString()
-  network: string;
+  network!: string;
 }
 
 export class VerifyMeterDto {
   @IsString()
-  meterNumber: string;
+  meterNumber!: string;
 
   @IsString()
-  disco: string;
+  disco!: string;
 
   @IsString()
-  meterType: string;
+  meterType!: string;
 }
 
 export class PayElectricityDto {
   @IsString()
-  meterNumber: string;
+  meterNumber!: string;
 
   @IsString()
-  disco: string;
+  disco!: string;
 
   @IsString()
-  meterType: string;
+  meterType!: string;
 
   @IsNumber()
   @Min(500)
   @Transform(({ value }) => Number(value))
-  amount: number;
+  amount!: number;
 
   @IsString()
-  customerName: string;
+  customerName!: string;
 
   @IsString()
-  pin: string;
+  pin!: string;
 }
 
 export class GetCablePlansDto {
   @IsString()
-  provider: string;
+  provider!: string;
 }
 
 export class VerifySmartCardDto {
   @IsString()
-  smartCardNumber: string;
+  smartCardNumber!: string;
 
   @IsString()
-  provider: string;
+  provider!: string;
 }
 
 export class PayCableDto {
   @IsString()
-  smartCardNumber: string;
+  smartCardNumber!: string;
 
   @IsString()
-  provider: string;
+  provider!: string;
 
   @IsString()
-  planCode: string;
+  planCode!: string;
 
   @IsNumber()
   @Min(100)
   @Transform(({ value }) => Number(value))
-  amount: number;
+  amount!: number;
 
   @IsString()
-  customerName: string;
+  customerName!: string;
 
   @IsString()
-  pin: string;
+  pin!: string;
 }

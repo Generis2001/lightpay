@@ -12,40 +12,40 @@ import { User } from '../users/user.entity';
 @Entity('user_devices')
 export class UserDevice {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column({ type: 'uuid', name: 'user_id' })
   @Index()
-  userId: string;
+  userId!: string;
 
   @Column({ type: 'varchar', length: 255, name: 'device_id' })
-  deviceId: string;
+  deviceId!: string;
 
   @Column({ type: 'varchar', length: 255, nullable: true, name: 'device_name' })
-  deviceName: string | null;
+  deviceName!: string | null;
 
   @Column({ type: 'varchar', length: 20, nullable: true })
-  platform: string | null;
+  platform!: string | null;
 
   @Column({ type: 'text', nullable: true, name: 'push_token' })
-  pushToken: string | null;
+  pushToken!: string | null;
 
   @Column({ type: 'varchar', length: 255, name: 'fingerprint' })
-  fingerprint: string;
+  fingerprint!: string;
 
   @Column({ default: false, name: 'is_trusted' })
-  isTrusted: boolean;
+  isTrusted!: boolean;
 
   @Column({ default: false, name: 'biometric_enabled' })
-  biometricEnabled: boolean;
+  biometricEnabled!: boolean;
 
   @Column({ type: 'timestamptz', nullable: true, name: 'last_seen_at' })
-  lastSeenAt: Date | null;
+  lastSeenAt!: Date | null;
 
   @CreateDateColumn({ name: 'created_at' })
-  createdAt: Date;
+  createdAt!: Date;
 
   @ManyToOne(() => User, (user) => user.devices)
   @JoinColumn({ name: 'user_id' })
-  user: User;
+  user!: User;
 }

@@ -18,7 +18,7 @@ import { DevicesModule } from '../devices/devices.module';
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('app.jwtSecret'),
+        secret: config.getOrThrow<string>('app.jwtSecret'),
         signOptions: { expiresIn: config.get('app.jwtExpiresIn') ?? '15m' },
       }),
     }),

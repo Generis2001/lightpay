@@ -265,7 +265,7 @@ export class AuthService {
     // In production: look up refresh token in DB, verify not revoked
     try {
       const payload = this.jwtService.verify(dto.refreshToken, {
-        secret: this.config.get('app.jwtSecret'),
+        secret: this.config.getOrThrow<string>('app.jwtSecret'),
       });
       const tokens = await this.generateTokens(payload.sub, payload.deviceId);
       return ApiResponse.success({ tokens }, 'Token refreshed');

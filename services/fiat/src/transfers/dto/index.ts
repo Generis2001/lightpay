@@ -3,21 +3,21 @@ import { Transform } from 'class-transformer';
 
 export class BankTransferDto {
   @IsString()
-  accountNumber: string;
+  accountNumber!: string;
 
   @IsString()
-  bankCode: string;
+  bankCode!: string;
 
   @IsString()
-  bankName: string;
+  bankName!: string;
 
   @IsString()
-  recipientName: string;
+  recipientName!: string;
 
   @IsNumber()
   @Min(100)
   @Transform(({ value }) => Number(value))
-  amount: number;
+  amount!: number;
 
   @IsString()
   @IsOptional()
@@ -25,13 +25,13 @@ export class BankTransferDto {
   narration?: string;
 
   @IsString()
-  pin: string;
+  pin!: string;
 }
 
 export class ResolveAccountDto {
   @IsString()
-  accountNumber: string;
+  accountNumber!: string;
 
   @IsString()
-  bankCode: string;
+  bankCode!: string;
 }

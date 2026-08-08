@@ -18,7 +18,7 @@ export class JwtAuthGuard implements CanActivate {
 
     try {
       const payload = await this.jwtService.verifyAsync(token, {
-        secret: this.configService.get<string>('JWT_SECRET'),
+        secret: this.configService.getOrThrow<string>('app.jwtSecret'),
       });
 
       if (payload.type !== 'access') {
@@ -34,6 +34,6 @@ export class JwtAuthGuard implements CanActivate {
 
   private extractToken(request: Request): string | null {
     const [type, token] = request.headers.authorization?.split(' ') ?? [];
-    return type === 'Bearer' ? token : null;
+    return type === 'Bearer' ? token ?? null : null;
   }
 }

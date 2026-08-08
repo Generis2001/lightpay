@@ -5,14 +5,22 @@ import {
   RequestMethod,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as proxy from 'express-http-proxy';
+import proxy from 'express-http-proxy';
+
+interface ServiceUrls {
+  auth: string;
+  fiat: string;
+  crypto: string;
+  kyc: string;
+  notifications: string;
+}
 
 @Module({})
 export class ProxyModule implements NestModule {
   constructor(private readonly configService: ConfigService) {}
 
   configure(consumer: MiddlewareConsumer) {
-    const services = this.configService.get<Record<string, string>>('app.services');
+    const services = this.configService.get<ServiceUrls>('app.services');
     if (!services) return;
 
     // Auth service — public routes, no JWT check at gateway level
@@ -25,7 +33,7 @@ export class ProxyModule implements NestModule {
     consumer
       .apply(
         proxy(services.fiat, {
-          proxyReqPathResolver: (req) =>
+          proxyReqPathResolver: (req: import('express').Request) =>
             req.url.replace('/api/v1', ''),
         }),
       )
@@ -36,22 +44,31 @@ export class ProxyModule implements NestModule {
         { path: '/api/v1/transactions/*path', method: RequestMethod.ALL },
       );
 
-    // KYC service
-    consumer
-      .apply(
-        proxy(services.kyc, {
-          proxyReqPathResolver: (req) => req.url.replace('/api/v1', ''),
-        }),
-      )
-      .forRoutes({ path: '/api/v1/kyc/*path', method: RequestMethod.ALL });
+    // KYC service — only registered when the upstream URL is configured
+    if (process.env.KYC_SERVICE_URL) {
+      consumer
+        .apply(
+          proxy(services.kyc, {
+            proxyReqPathResolver: (req: import('express').Request) =>
+              req.url.replace('/api/v1', ''),
+          }),
+        )
+        .forRoutes({ path: '/api/v1/kyc/*path', method: RequestMethod.ALL });
+    }
 
-    // Notifications service
-    consumer
-      .apply(
-        proxy(services.notifications, {
-          proxyReqPathResolver: (req) => req.url.replace('/api/v1', ''),
-        }),
-      )
-      .forRoutes({ path: '/api/v1/notifications/*path', method: RequestMethod.ALL });
+    // Notifications service — only registered when the upstream URL is configured
+    if (process.env.NOTIFICATIONS_SERVICE_URL) {
+      consumer
+        .apply(
+          proxy(services.notifications, {
+            proxyReqPathResolver: (req: import('express').Request) =>
+              req.url.replace('/api/v1', ''),
+          }),
+        )
+        .forRoutes({
+          path: '/api/v1/notifications/*path',
+          method: RequestMethod.ALL,
+        });
+    }
   }
 }

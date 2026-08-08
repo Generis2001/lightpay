@@ -150,7 +150,7 @@ export class WalletsService {
     fee?: number;
     type: string;
     description?: string;
-    narration?: string;
+    narration?: string | undefined;
     reference?: string;
     metadata?: Record<string, unknown>;
     status?: string;

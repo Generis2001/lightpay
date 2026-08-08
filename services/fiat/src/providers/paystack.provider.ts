@@ -2,14 +2,14 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance } from 'axios';
 
-interface ResolvedAccount {
+export interface ResolvedAccount {
   accountName: string;
   accountNumber: string;
   bankCode: string;
   bankName: string;
 }
 
-interface Bank {
+export interface Bank {
   code: string;
   name: string;
   logo?: string;

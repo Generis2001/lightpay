@@ -14,83 +14,83 @@ import { UserDevice } from '../devices/device.entity';
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column({ type: 'varchar', length: 15, nullable: true, unique: true })
   @Index()
-  phone: string | null;
+  phone!: string | null;
 
   @Column({ default: false, name: 'phone_verified' })
-  phoneVerified: boolean;
+  phoneVerified!: boolean;
 
   @Column({ type: 'varchar', length: 255, nullable: true, unique: true })
   @Index()
-  email: string | null;
+  email!: string | null;
 
   @Column({ default: false, name: 'email_verified' })
-  emailVerified: boolean;
+  emailVerified!: boolean;
 
   @Column({ type: 'varchar', length: 100, nullable: true, name: 'first_name' })
-  firstName: string | null;
+  firstName!: string | null;
 
   @Column({ type: 'varchar', length: 100, nullable: true, name: 'last_name' })
-  lastName: string | null;
+  lastName!: string | null;
 
   @Column({ type: 'varchar', length: 50, nullable: true, unique: true })
   @Index()
-  username: string | null;
+  username!: string | null;
 
   @Column({ type: 'text', nullable: true, name: 'avatar_url' })
-  avatarUrl: string | null;
+  avatarUrl!: string | null;
 
   @Column({ type: 'date', nullable: true, name: 'date_of_birth' })
-  dateOfBirth: Date | null;
+  dateOfBirth!: Date | null;
 
   @Column({ type: 'varchar', length: 10, nullable: true })
-  gender: string | null;
+  gender!: string | null;
 
   @Column({ type: 'smallint', default: 0, name: 'kyc_tier' })
-  kycTier: number;
+  kycTier!: number;
 
   @Column({ type: 'varchar', length: 20, default: 'pending', name: 'kyc_status' })
-  kycStatus: string;
+  kycStatus!: string;
 
   @Column({ type: 'varchar', length: 11, nullable: true, unique: true })
-  bvn: string | null;
+  bvn!: string | null;
 
   @Column({ type: 'varchar', length: 11, nullable: true, unique: true })
-  nin: string | null;
+  nin!: string | null;
 
   @Column({ default: true, name: 'is_active' })
-  isActive: boolean;
+  isActive!: boolean;
 
   @Column({ default: false, name: 'is_blocked' })
-  isBlocked: boolean;
+  isBlocked!: boolean;
 
   @Column({ type: 'text', nullable: true, name: 'blocked_reason' })
-  blockedReason: string | null;
+  blockedReason!: string | null;
 
   @Column({ type: 'varchar', length: 10, nullable: true, unique: true, name: 'referral_code' })
-  referralCode: string | null;
+  referralCode!: string | null;
 
   @Column({ type: 'uuid', nullable: true, name: 'referred_by' })
-  referredBy: string | null;
+  referredBy!: string | null;
 
   @Column({ type: 'varchar', length: 2, default: 'NG' })
-  country: string;
+  country!: string;
 
   @CreateDateColumn({ name: 'created_at' })
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt: Date;
+  updatedAt!: Date;
 
   @Column({ type: 'timestamptz', nullable: true, name: 'last_login_at' })
-  lastLoginAt: Date | null;
+  lastLoginAt!: Date | null;
 
   @OneToOne(() => UserAuth, (auth) => auth.user)
-  auth: UserAuth;
+  auth!: UserAuth;
 
   @OneToMany(() => UserDevice, (device) => device.user)
-  devices: UserDevice[];
+  devices!: UserDevice[];
 }

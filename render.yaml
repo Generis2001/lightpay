@@ -1,0 +1,135 @@
+# LightPay backend — Render blueprint
+# Deploys the gateway (public) + auth & fiat (private) as Docker services,
+# with managed Postgres and Redis. Connect this repo in the Render dashboard
+# (New > Blueprint) and Render will provision everything below.
+#
+# Secrets (sync:false) are NOT stored in git — set them in the Render dashboard
+# after the blueprint is created. See DEPLOY.md for the full go-live checklist.
+
+databases:
+  - name: lightpay-postgres
+    plan: basic-256mb          # bump as needed
+    databaseName: lightpay
+    user: lightpay
+    postgresMajorVersion: "16"
+
+services:
+  # ── Redis (Bull queues + auth token/session cache) ───────────────────────
+  - type: keyvalue
+    name: lightpay-redis
+    plan: starter
+    ipAllowList: []            # only reachable from Render private network
+    maxmemoryPolicy: noeviction # required for Bull job reliability
+
+  # ── API Gateway (public entrypoint) ──────────────────────────────────────
+  - type: web
+    name: lightpay-gateway
+    runtime: docker
+    dockerfilePath: ./services/gateway/Dockerfile
+    dockerContext: .
+    plan: starter
+    # No healthCheckPath: neither the gateway nor auth exposes an unauthenticated
+    # health route yet, so Render falls back to a TCP port check. Adding a
+    # GET /health to each service is a recommended follow-up (see DEPLOY.md).
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: GATEWAY_PORT
+        value: "3000"
+      - key: JWT_SECRET
+        sync: false            # MUST match auth & fiat — set the same value on all three
+      # Internal service URLs (Render private networking: http://<service>:<port>)
+      - key: AUTH_SERVICE_URL
+        value: http://lightpay-auth:3001
+      - key: FIAT_SERVICE_URL
+        value: http://lightpay-fiat:3002
+      # kyc / notifications intentionally unset — those services don't exist yet,
+      # and the gateway now skips their proxy routes when the URL is absent.
+
+  # ── Auth service (private) ────────────────────────────────────────────────
+  - type: pserv
+    name: lightpay-auth
+    runtime: docker
+    dockerfilePath: ./services/auth/Dockerfile
+    dockerContext: .
+    plan: starter
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3001"
+      # First bring-up only: lets TypeORM create the schema/tables. See DEPLOY.md
+      # — flip to "false" and redeploy once tables exist (there are no migrations).
+      - key: DB_SYNCHRONIZE
+        value: "true"
+      - key: JWT_SECRET
+        sync: false            # same value as gateway & fiat
+      - key: JWT_EXPIRES_IN
+        value: 15m
+      - key: REFRESH_TOKEN_EXPIRES_IN
+        value: 30d
+      # Postgres (from managed DB)
+      - key: POSTGRES_HOST
+        fromDatabase: { name: lightpay-postgres, property: host }
+      - key: POSTGRES_PORT
+        fromDatabase: { name: lightpay-postgres, property: port }
+      - key: POSTGRES_USER
+        fromDatabase: { name: lightpay-postgres, property: user }
+      - key: POSTGRES_PASSWORD
+        fromDatabase: { name: lightpay-postgres, property: password }
+      - key: POSTGRES_DB
+        fromDatabase: { name: lightpay-postgres, property: database }
+      # Redis
+      - key: REDIS_URL
+        fromService: { name: lightpay-redis, type: keyvalue, property: connectionString }
+      # SMS / email providers (OTP fails closed if unset — set before go-live)
+      - key: TERMII_API_KEY
+        sync: false
+      - key: TERMII_SENDER_ID
+        value: LightPay
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: FROM_EMAIL
+        value: noreply@lightpay.ng
+
+  # ── Fiat service (private) ────────────────────────────────────────────────
+  - type: pserv
+    name: lightpay-fiat
+    runtime: docker
+    dockerfilePath: ./services/fiat/Dockerfile
+    dockerContext: .
+    plan: starter
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: FIAT_PORT
+        value: "3002"
+      - key: DB_SYNCHRONIZE
+        value: "true"          # first bring-up only — see DEPLOY.md
+      - key: JWT_SECRET
+        sync: false            # same value as gateway & auth
+      # Postgres
+      - key: POSTGRES_HOST
+        fromDatabase: { name: lightpay-postgres, property: host }
+      - key: POSTGRES_PORT
+        fromDatabase: { name: lightpay-postgres, property: port }
+      - key: POSTGRES_USER
+        fromDatabase: { name: lightpay-postgres, property: user }
+      - key: POSTGRES_PASSWORD
+        fromDatabase: { name: lightpay-postgres, property: password }
+      - key: POSTGRES_DB
+        fromDatabase: { name: lightpay-postgres, property: database }
+      # Redis (Bull queues)
+      - key: REDIS_URL
+        fromService: { name: lightpay-redis, type: keyvalue, property: connectionString }
+      # Payment providers (live keys — set in dashboard)
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: PAYSTACK_PUBLIC_KEY
+        sync: false
+      - key: VTPASS_API_KEY
+        sync: false
+      - key: VTPASS_PUBLIC_KEY
+        sync: false
+      - key: VTPASS_SECRET_KEY
+        sync: false

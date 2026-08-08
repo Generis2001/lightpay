@@ -15,10 +15,10 @@ import appConfig from './config/app.config';
       envFilePath: ['.env', '.env.local'],
     }),
     JwtModule.registerAsync({
-      isGlobal: true,
+      global: true,
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('app.jwtSecret'),
+        secret: config.getOrThrow<string>('app.jwtSecret'),
       }),
     }),
     ThrottlerModule.forRoot([

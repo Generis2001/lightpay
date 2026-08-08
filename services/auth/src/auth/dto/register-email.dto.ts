@@ -6,7 +6,7 @@ export class RegisterEmailDto {
   @ApiProperty({ example: 'user@example.com' })
   @IsEmail({}, { message: 'Please provide a valid email address' })
   @Transform(({ value }: { value: string }) => value?.toLowerCase().trim())
-  email: string;
+  email!: string;
 
   @ApiPropertyOptional()
   @IsOptional()

@@ -4,6 +4,7 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "module": "CommonJS",
+    "moduleResolution": "node",
     "incremental": true,
     "tsBuildInfoFile": "dist/.tsbuildinfo"
   },

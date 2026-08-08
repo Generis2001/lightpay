@@ -9,5 +9,5 @@ export class EnableBiometricDto {
 
   @ApiProperty()
   @IsString()
-  deviceId: string;
+  deviceId!: string;
 }

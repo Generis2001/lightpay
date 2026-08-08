@@ -7,7 +7,7 @@ export class RegisterPhoneDto {
   @Matches(/^\+234[789][01]\d{8}$/, {
     message: 'Phone must be a valid Nigerian number in +234 format',
   })
-  phone: string;
+  phone!: string;
 
   @ApiPropertyOptional()
   @IsOptional()

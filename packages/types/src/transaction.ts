@@ -79,7 +79,7 @@ export interface BankTransferRequest {
   accountNumber: string;
   accountName: string;
   amount: number;
-  narration?: string;
+  narration?: string | undefined;
   saveBeneficiary?: boolean;
   pin: string;
 }

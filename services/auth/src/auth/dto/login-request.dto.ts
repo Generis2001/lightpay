@@ -4,9 +4,9 @@ import { ApiProperty } from '@nestjs/swagger';
 export class LoginRequestDto {
   @ApiProperty({ description: 'Phone number or email' })
   @IsString()
-  identifier: string;
+  identifier!: string;
 
   @ApiProperty({ enum: ['phone', 'email'] })
   @IsIn(['phone', 'email'])
-  method: 'phone' | 'email';
+  method!: 'phone' | 'email';
 }

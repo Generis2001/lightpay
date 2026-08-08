@@ -6,11 +6,11 @@ export class ChangePinDto {
   @IsString()
   @Length(6, 6)
   @Matches(/^\d{6}$/)
-  currentPin: string;
+  currentPin!: string;
 
   @ApiProperty()
   @IsString()
   @Length(6, 6)
   @Matches(/^\d{6}$/, { message: 'New PIN must contain only digits' })
-  newPin: string;
+  newPin!: string;
 }

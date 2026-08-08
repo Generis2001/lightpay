@@ -1,7 +1,7 @@
 export class ApiResponse<T = unknown> {
   success: boolean;
   data: T;
-  message?: string;
+  message?: string | undefined;
   timestamp: string;
 
   constructor(success: boolean, data: T, message?: string) {
