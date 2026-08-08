@@ -2,21 +2,72 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import { WalletsService } from '../wallets/wallets.service';
 import { Transaction } from '../transactions/transaction.entity';
 import { generateReference } from '../common/utils';
 
+/** VTpass serviceID mappings (https://vtpass.com/documentation) */
+const AIRTIME_SERVICE_ID: Record<string, string> = {
+  MTN: 'mtn',
+  GLO: 'glo',
+  AIRTEL: 'airtel',
+  '9MOBILE': 'etisalat',
+};
+
+const DATA_SERVICE_ID: Record<string, string> = {
+  MTN: 'mtn-data',
+  GLO: 'glo-data',
+  AIRTEL: 'airtel-data',
+  '9MOBILE': 'etisalat-data',
+};
+
+/** DISCO id -> VTpass electricity serviceID */
+const ELECTRICITY_SERVICE_ID: Record<string, string> = {
+  IKEDC: 'ikeja-electric',
+  EKEDC: 'eko-electric',
+  KEDCO: 'kano-electric',
+  PHED: 'portharcourt-electric',
+  JED: 'jos-electric',
+  IBEDC: 'ibadan-electric',
+  KAEDCO: 'kaduna-electric',
+  AEDC: 'abuja-electric',
+  EEDC: 'enugu-electric',
+  BEDC: 'benin-electric',
+};
+
+const CABLE_SERVICE_ID: Record<string, string> = {
+  DSTV: 'dstv',
+  GOTV: 'gotv',
+  STARTIMES: 'startimes',
+};
+
 @Injectable()
 export class BillsService {
-  private readonly vtpassBaseUrl = 'https://sandbox.vtpass.com/api';
+  private readonly client: AxiosInstance;
 
   constructor(
     private readonly config: ConfigService,
     private readonly walletsService: WalletsService,
     @InjectRepository(Transaction)
     private readonly txRepo: Repository<Transaction>,
-  ) {}
+  ) {
+    // Non-production uses VTpass sandbox (real API, free). Production uses live.
+    this.client = axios.create({
+      baseURL:
+        process.env.NODE_ENV === 'production'
+          ? 'https://vtpass.com/api'
+          : 'https://sandbox.vtpass.com/api',
+      headers: {
+        'api-key': this.config.get('app.vtpassApiKey') ?? '',
+        'secret-key': this.config.get('app.vtpassSecretKey') ?? '',
+        'public-key': this.config.get('app.vtpassPublicKey') ?? '',
+      },
+      timeout: 30000,
+    });
+  }
+
+  // ─────────────────────────── AIRTIME ───────────────────────────
 
   async getAirtimeNetworks() {
     return [
@@ -27,37 +78,6 @@ export class BillsService {
     ];
   }
 
-  async getDataPlans(network: string) {
-    const plans: Record<string, { code: string; name: string; amount: number; validity: string; allowance: string }[]> = {
-      MTN: [
-        { code: 'mtn-500mb-1day', name: '500MB', amount: 150, validity: '1 Day', allowance: '500MB' },
-        { code: 'mtn-1gb-1day', name: '1GB', amount: 300, validity: '1 Day', allowance: '1GB' },
-        { code: 'mtn-2gb-3days', name: '2GB', amount: 500, validity: '3 Days', allowance: '2GB' },
-        { code: 'mtn-3gb-7days', name: '3GB', amount: 1000, validity: '7 Days', allowance: '3GB' },
-        { code: 'mtn-5gb-30days', name: '5GB', amount: 1500, validity: '30 Days', allowance: '5GB' },
-        { code: 'mtn-10gb-30days', name: '10GB', amount: 2500, validity: '30 Days', allowance: '10GB' },
-        { code: 'mtn-20gb-30days', name: '20GB', amount: 4500, validity: '30 Days', allowance: '20GB' },
-      ],
-      GLO: [
-        { code: 'glo-1gb-1day', name: '1GB', amount: 200, validity: '1 Day', allowance: '1GB' },
-        { code: 'glo-2gb-3days', name: '2GB', amount: 500, validity: '3 Days', allowance: '2GB' },
-        { code: 'glo-5gb-30days', name: '5GB', amount: 1500, validity: '30 Days', allowance: '5GB' },
-        { code: 'glo-10gb-30days', name: '10GB', amount: 2500, validity: '30 Days', allowance: '10GB' },
-      ],
-      AIRTEL: [
-        { code: 'airtel-500mb-1day', name: '500MB', amount: 150, validity: '1 Day', allowance: '500MB' },
-        { code: 'airtel-2gb-3days', name: '2GB', amount: 500, validity: '3 Days', allowance: '2GB' },
-        { code: 'airtel-6gb-30days', name: '6GB', amount: 1500, validity: '30 Days', allowance: '6GB' },
-      ],
-      '9MOBILE': [
-        { code: '9mobile-1gb-1day', name: '1GB', amount: 200, validity: '1 Day', allowance: '1GB' },
-        { code: '9mobile-2gb-30days', name: '2GB', amount: 1000, validity: '30 Days', allowance: '2GB' },
-      ],
-    };
-
-    return plans[network] ?? [];
-  }
-
   async purchaseAirtime(params: {
     userId: string;
     walletId: string;
@@ -65,8 +85,10 @@ export class BillsService {
     phone: string;
     amount: number;
   }) {
-    const reference = generateReference('AIR');
+    const serviceID = AIRTIME_SERVICE_ID[params.network];
+    if (!serviceID) throw new BadRequestException('Unsupported network');
 
+    const reference = generateReference('AIR');
     const tx = await this.walletsService.debitWallet({
       walletId: params.walletId,
       userId: params.userId,
@@ -77,28 +99,31 @@ export class BillsService {
       status: 'processing',
     });
 
-    // Call VTPass / BillsAfrica API
-    const result = await this.callAirtimeProvider({
-      network: params.network,
-      phone: params.phone,
+    const result = await this.vtpassPay({
+      serviceID,
+      billersCode: params.phone,
       amount: params.amount,
-      reference,
+      phone: params.phone,
+      request_id: reference,
     });
 
-    if (result.success) {
-      await this.txRepo.update(tx.id, {
-        status: 'completed',
-        providerRef: result.requestId,
-        completedAt: new Date(),
-      });
-      return { transaction: { ...tx, status: 'completed' }, providerRef: result.requestId, status: 'completed' };
-    } else {
-      await this.walletsService.reverseTransaction(tx.id, params.userId);
-      throw new BadRequestException({
-        code: 'PROVIDER_ERROR',
-        message: result.message || 'Airtime purchase failed',
-      });
-    }
+    return this.finalizeBillTx(tx.id, params.userId, result);
+  }
+
+  // ───────────────────────────── DATA ────────────────────────────
+
+  async getDataPlans(network: string) {
+    const serviceID = DATA_SERVICE_ID[network];
+    if (!serviceID) return [];
+
+    const variations = await this.fetchVariations(serviceID);
+    return variations.map((v) => ({
+      code: v.variation_code,
+      name: v.name,
+      amount: parseFloat(v.variation_amount),
+      validity: v.name,
+      allowance: v.name,
+    }));
   }
 
   async purchaseData(params: {
@@ -109,11 +134,14 @@ export class BillsService {
     planCode: string;
     amount: number;
   }) {
-    const reference = generateReference('DATA');
+    const serviceID = DATA_SERVICE_ID[params.network];
+    if (!serviceID) throw new BadRequestException('Unsupported network');
+
     const plans = await this.getDataPlans(params.network);
     const plan = plans.find((p) => p.code === params.planCode);
     if (!plan) throw new BadRequestException('Invalid data plan');
 
+    const reference = generateReference('DATA');
     const tx = await this.walletsService.debitWallet({
       walletId: params.walletId,
       userId: params.userId,
@@ -124,20 +152,31 @@ export class BillsService {
       status: 'processing',
     });
 
-    return { transaction: tx, status: 'processing', message: 'Data purchase initiated' };
+    const result = await this.vtpassPay({
+      serviceID,
+      billersCode: params.phone,
+      variation_code: params.planCode,
+      amount: plan.amount,
+      phone: params.phone,
+      request_id: reference,
+    });
+
+    return this.finalizeBillTx(tx.id, params.userId, result);
   }
 
+  // ────────────────────────── ELECTRICITY ────────────────────────
+
   async verifyMeter(params: { provider: string; meterNumber: string; meterType: string }) {
-    if (process.env.NODE_ENV === 'development') {
-      return {
-        customerName: 'JOHN DOE',
-        address: '12 Victoria Island, Lagos',
-        meterNumber: params.meterNumber,
-        provider: params.provider,
-      };
-    }
-    // Call VTPass meter verification
-    return null;
+    const serviceID = ELECTRICITY_SERVICE_ID[params.provider];
+    if (!serviceID) throw new BadRequestException('Unsupported electricity provider');
+
+    const verify = await this.vtpassVerify(serviceID, params.meterNumber, params.meterType);
+    return {
+      customerName: verify.Customer_Name ?? verify.customerName ?? '',
+      address: verify.Address ?? verify.address ?? '',
+      meterNumber: params.meterNumber,
+      provider: params.provider,
+    };
   }
 
   async payElectricity(params: {
@@ -148,8 +187,10 @@ export class BillsService {
     meterType: string;
     amount: number;
   }) {
-    const reference = generateReference('ELEC');
+    const serviceID = ELECTRICITY_SERVICE_ID[params.provider];
+    if (!serviceID) throw new BadRequestException('Unsupported electricity provider');
 
+    const reference = generateReference('ELEC');
     const tx = await this.walletsService.debitWallet({
       walletId: params.walletId,
       userId: params.userId,
@@ -165,38 +206,47 @@ export class BillsService {
       },
     });
 
-    // Dev mode returns mock token
-    const token = process.env.NODE_ENV === 'development'
-      ? `${Math.floor(Math.random() * 9999)}-${Math.floor(Math.random() * 9999)}-${Math.floor(Math.random() * 9999)}-${Math.floor(Math.random() * 9999)}`
-      : null;
+    const result = await this.vtpassPay({
+      serviceID,
+      billersCode: params.meterNumber,
+      variation_code: params.meterType, // 'prepaid' | 'postpaid'
+      amount: params.amount,
+      phone: params.meterNumber,
+      request_id: reference,
+    });
 
+    const finalized = await this.finalizeBillTx(tx.id, params.userId, result);
     return {
-      transaction: tx,
-      token,
-      status: 'completed',
-      units: params.amount / 50, // Mock unit calculation
+      ...finalized,
+      token: result.token ?? null,
+      units: result.units ?? null,
     };
   }
 
-  async getCablePlans(provider: string) {
-    const plans: Record<string, { code: string; name: string; amount: number }[]> = {
-      DSTV: [
-        { code: 'dstv-padi', name: 'DStv Padi', amount: 2950 },
-        { code: 'dstv-yanga', name: 'DStv Yanga', amount: 4100 },
-        { code: 'dstv-confam', name: 'DStv Confam', amount: 6200 },
-        { code: 'dstv-compact', name: 'DStv Compact', amount: 10500 },
-        { code: 'dstv-compact-plus', name: 'DStv Compact Plus', amount: 16600 },
-        { code: 'dstv-premium', name: 'DStv Premium', amount: 24500 },
-      ],
-      GOTV: [
-        { code: 'gotv-lite', name: 'GOtv Lite', amount: 900 },
-        { code: 'gotv-jinja', name: 'GOtv Jinja', amount: 2715 },
-        { code: 'gotv-jolli', name: 'GOtv Jolli', amount: 3800 },
-        { code: 'gotv-max', name: 'GOtv Max', amount: 5500 },
-      ],
-    };
+  // ───────────────────────────── CABLE ───────────────────────────
 
-    return plans[provider] ?? [];
+  async getCablePlans(provider: string) {
+    const serviceID = CABLE_SERVICE_ID[provider];
+    if (!serviceID) return [];
+
+    const variations = await this.fetchVariations(serviceID);
+    return variations.map((v) => ({
+      code: v.variation_code,
+      name: v.name,
+      amount: parseFloat(v.variation_amount),
+    }));
+  }
+
+  async verifySmartCard(params: { provider: string; smartCardNumber: string }) {
+    const serviceID = CABLE_SERVICE_ID[params.provider];
+    if (!serviceID) throw new BadRequestException('Unsupported cable provider');
+
+    const verify = await this.vtpassVerify(serviceID, params.smartCardNumber);
+    return {
+      customerName: verify.Customer_Name ?? verify.customerName ?? '',
+      smartCardNumber: params.smartCardNumber,
+      provider: params.provider,
+    };
   }
 
   async payCable(params: {
@@ -207,12 +257,14 @@ export class BillsService {
     planCode: string;
     amount: number;
   }) {
+    const serviceID = CABLE_SERVICE_ID[params.provider];
+    if (!serviceID) throw new BadRequestException('Unsupported cable provider');
+
     const plans = await this.getCablePlans(params.provider);
     const plan = plans.find((p) => p.code === params.planCode);
     if (!plan) throw new BadRequestException('Invalid cable plan');
 
     const reference = generateReference('CABLE');
-
     const tx = await this.walletsService.debitWallet({
       walletId: params.walletId,
       userId: params.userId,
@@ -220,54 +272,132 @@ export class BillsService {
       type: 'cable',
       description: `${plan.name} - ${params.provider} (${params.smartcardNumber})`,
       reference,
-      status: 'completed',
+      status: 'processing',
     });
 
-    return { transaction: tx, status: 'completed' };
+    const result = await this.vtpassPay({
+      serviceID,
+      billersCode: params.smartcardNumber,
+      variation_code: params.planCode,
+      amount: plan.amount,
+      phone: params.smartcardNumber,
+      request_id: reference,
+    });
+
+    return this.finalizeBillTx(tx.id, params.userId, result);
   }
 
-  private async callAirtimeProvider(params: {
-    network: string;
-    phone: string;
+  // ─────────────────────── VTpass primitives ─────────────────────
+
+  /** Marks a debited bill transaction completed/failed based on provider result. */
+  private async finalizeBillTx(txId: string, userId: string, result: VtpassResult) {
+    if (result.success) {
+      await this.txRepo.update(txId, {
+        status: 'completed',
+        providerRef: result.providerRef ?? null,
+        completedAt: new Date(),
+      });
+      const tx = await this.txRepo.findOne({ where: { id: txId } });
+      return { transaction: tx, providerRef: result.providerRef, status: 'completed' };
+    }
+
+    await this.failAndReverse(txId, userId);
+    throw new BadRequestException({
+      code: 'PROVIDER_ERROR',
+      message: result.message || 'Bill payment failed',
+    });
+  }
+
+  /** Reverses a debit by marking it failed then crediting the wallet back. */
+  private async failAndReverse(txId: string, userId: string) {
+    await this.txRepo.update(txId, { status: 'failed' });
+    await this.walletsService.reverseTransaction(txId, userId);
+  }
+
+  private async vtpassPay(params: {
+    serviceID: string;
+    billersCode: string;
+    variation_code?: string;
     amount: number;
-    reference: string;
-  }): Promise<{ success: boolean; requestId?: string; message?: string }> {
-    if (process.env.NODE_ENV === 'development') {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      return { success: true, requestId: `VTP_${Date.now()}` };
-    }
-
+    phone: string;
+    request_id: string;
+  }): Promise<VtpassResult> {
     try {
-      const serviceIdMap: Record<string, string> = {
-        MTN: 'mtn',
-        GLO: 'glo',
-        AIRTEL: 'airtel',
-        '9MOBILE': 'etisalat',
+      const { data } = await this.client.post('/pay', {
+        request_id: params.request_id,
+        serviceID: params.serviceID,
+        billersCode: params.billersCode,
+        variation_code: params.variation_code,
+        amount: params.amount,
+        phone: params.phone,
+      });
+
+      // VTpass: code '000' == transaction processed successfully
+      const success = data.code === '000';
+      const purchased = data.content?.transactions ?? {};
+      const result: VtpassResult = {
+        success,
+        providerRef: purchased.transactionId ?? data.requestId,
+        message: data.response_description,
       };
-
-      const response = await axios.post(
-        `${this.vtpassBaseUrl}/pay`,
-        {
-          request_id: params.reference,
-          serviceID: serviceIdMap[params.network],
-          amount: params.amount,
-          phone: params.phone,
-        },
-        {
-          headers: {
-            'api-key': this.config.get('fiat.vtpassApiKey'),
-            'public-key': this.config.get('fiat.vtpassPublicKey'),
-          },
-        },
-      );
-
+      const token = data.Token ?? data.token ?? purchased.token;
+      if (token) result.token = token;
+      if (data.units) result.units = parseFloat(data.units);
+      return result;
+    } catch (err) {
       return {
-        success: response.data.code === '000',
-        requestId: response.data.requestId,
-        message: response.data.response_description,
+        success: false,
+        message:
+          (axios.isAxiosError(err) && err.response?.data?.response_description) ||
+          'Provider request failed',
       };
-    } catch {
-      return { success: false, message: 'Provider error' };
     }
   }
+
+  private async vtpassVerify(
+    serviceID: string,
+    billersCode: string,
+    type?: string,
+  ): Promise<Record<string, string>> {
+    try {
+      const { data } = await this.client.post('/merchant-verify', {
+        serviceID,
+        billersCode,
+        type,
+      });
+      const content = data.content ?? {};
+      if (content.error || data.code !== '000') {
+        throw new BadRequestException(content.error ?? 'Verification failed');
+      }
+      return content;
+    } catch (err) {
+      if (err instanceof BadRequestException) throw err;
+      throw new BadRequestException('Unable to verify with provider');
+    }
+  }
+
+  private async fetchVariations(serviceID: string): Promise<VtpassVariation[]> {
+    try {
+      const { data } = await this.client.get('/service-variations', {
+        params: { serviceID },
+      });
+      return data.content?.variations ?? data.content?.varations ?? [];
+    } catch {
+      return [];
+    }
+  }
+}
+
+interface VtpassResult {
+  success: boolean;
+  providerRef?: string;
+  message?: string;
+  token?: string;
+  units?: number;
+}
+
+interface VtpassVariation {
+  variation_code: string;
+  name: string;
+  variation_amount: string;
 }

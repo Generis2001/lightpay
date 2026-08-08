@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, UnprocessableEntityException } from '@nestjs/common';
+import { Injectable, BadRequestException, UnprocessableEntityException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 
@@ -86,9 +86,8 @@ export class OtpService {
 
   private async sendSms(phone: string, code: string): Promise<void> {
     const apiKey = this.config.get<string>('app.termiiApiKey');
-    if (!apiKey || process.env.NODE_ENV === 'development') {
-      console.log(`[OTP] SMS to ${phone}: ${code}`);
-      return;
+    if (!apiKey) {
+      throw new ServiceUnavailableException('SMS provider not configured');
     }
 
     const response = await fetch('https://api.ng.termii.com/api/sms/send', {
@@ -111,9 +110,8 @@ export class OtpService {
 
   private async sendEmail(email: string, code: string, purpose: string): Promise<void> {
     const apiKey = this.config.get<string>('app.sendgridApiKey');
-    if (!apiKey || process.env.NODE_ENV === 'development') {
-      console.log(`[OTP] Email to ${email}: ${code}`);
-      return;
+    if (!apiKey) {
+      throw new ServiceUnavailableException('Email provider not configured');
     }
 
     const subjects: Record<string, string> = {

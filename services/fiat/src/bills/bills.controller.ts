@@ -113,14 +113,11 @@ export class BillsController {
 
   @Get('cable/verify-card')
   async verifySmartCard(@Query() dto: VerifySmartCardDto) {
-    if (process.env.NODE_ENV === 'development') {
-      return successResponse({
-        customerName: 'JOHN DOE',
-        smartCardNumber: dto.smartCardNumber,
-        provider: dto.provider,
-      });
-    }
-    throw new BadRequestException('Smart card verification not available');
+    const result = await this.billsService.verifySmartCard({
+      provider: dto.provider,
+      smartCardNumber: dto.smartCardNumber,
+    });
+    return successResponse(result);
   }
 
   @Post('cable')
