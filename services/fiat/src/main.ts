@@ -36,7 +36,7 @@ async function bootstrap() {
   }
 
   const port = process.env.FIAT_PORT ?? 3002;
-  await app.listen(port);
+  await app.listen(port, process.env.SERVICE_BIND_HOST ?? '0.0.0.0');
   console.log(`Fiat service running on port ${port}`);
 }
 

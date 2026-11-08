@@ -22,26 +22,40 @@ Local ignored `.env.local` files in the root, auth, and fiat directories hold th
 
 Startup creates the service schema and applies checked-in migrations before accepting requests. The database role needs schema/table/index creation and the `uuid-ossp` extension (or have an administrator preinstall the extension). `DB_SYNCHRONIZE` must remain false. Existing duplicate wallets or references make the uniqueness migration fail for review; migrations do not delete conflicting financial data. Back up an existing database and review migrations before deploying.
 
-## Services
+## Free backend deployment
 
-| Component | Deployment | Port | Responsibilities |
-| --- | --- | --- | --- |
-| lightpay-gateway | Public Docker web service | 3000 | API proxy, aggregate health |
-| lightpay-auth | Private Docker service | 3001 | OTP, PIN, profiles, sessions, Prembly KYC |
-| lightpay-fiat | Private Docker service | 3002 | NGN ledger, Paystack, VTpass, Flutterwave, Fireblocks, notifications |
-| generis-postgresql-lightpay | Existing Render PostgreSQL 18, Oregon | 5432 | Persistent user, ledger and provider state |
+The free deployment runs auth, fiat, and the gateway in one Docker web service,
+`lightpay-backend`, in Oregon. Only the gateway listens on Render's public `PORT`.
+Auth and fiat listen on `127.0.0.1:3001` and `127.0.0.1:3002` inside the container.
+The startup supervisor waits for auth's SQL health check before starting fiat, then
+waits for fiat before starting the gateway. A failed child stops the container so
+Render can restart the complete backend.
 
-Crypto, KYC and notifications are modules in the existing services. No extra service URLs or ports are required. Docker Desktop/WSL integration was unavailable here, so Docker images still need a real build/run validation.
+The combined Dockerfile is `services/backend/Dockerfile`, with the repository root
+as its build context. The startup script is `infra/start-backend.cjs`. Per-process
+Node heap limits leave memory for native modules within the free service's budget.
+The public `/api/v1/health` checks both upstream services, each of which runs
+`SELECT 1` against the existing database.
 
-## Deploy on Render
+1. Deploy the `deploy/lightpay-backend` branch as a **Free Docker Web Service** in
+   Lightpay's **Production** environment, with the combined Dockerfile above.
+2. Link the existing `lightpay-database` and `lightpay-authentication` environment
+   groups. The first holds the internal database URL and its TLS settings; the
+   second holds the generated shared `JWT_SECRET`. No credentials belong in Git.
+3. Set `NODE_ENV=production` and `DB_SYNCHRONIZE=false`. Keep Flutterwave, Fireblocks,
+   and Prembly disabled until provider credentials and account behavior are verified.
+4. Verify migrations and all three processes in Render's logs. Confirm the public
+   `/api/v1/health` responds with `{"status":"ready"}`.
+5. Point the mobile app at the service's HTTPS URL followed by `/api/v1`, or configure
+   the `api.lightpay.ng` custom domain and DNS before building the production APK.
+6. Configure Paystack's webhook at the backend URL followed by
+   `/api/v1/webhooks/paystack` when enabling that provider. The gateway preserves
+   raw bytes and fiat verifies the Paystack HMAC before settlement.
 
-1. Connect the repository and choose **New → Blueprint** to review `render.yaml` in Lightpay's **Production** environment. The services are in Oregon to match the existing database and reuse its `lightpay-database` group. Review the paid service/Redis resources before provisioning them. The existing free database expires on **8 December 2026** unless upgraded; no upgrade has been performed.
-2. Link the existing `lightpay-authentication` environment group to gateway, auth, and fiat. It holds one generated `JWT_SECRET` of at least 32 characters; the blueprint imports the same group into all three services. Link `lightpay-database` only to auth and fiat. These groups must be in the target Production environment.
-3. Set SMS/email credentials on auth and payment-provider credentials on fiat, using [.env.example](.env.example) and the provider instructions below. New providers default to disabled.
-4. Deploy auth and fiat with migrations, then gateway. Auth must be healthy before protected fiat requests can validate sessions.
-5. Check gateway `GET /api/v1/health` over HTTPS; it checks both upstream services. Direct internal health endpoints are auth `/api/v1/health` and fiat `/health`. Do not publish the private services.
-6. Add `api.lightpay.ng` to the gateway and configure the DNS record Render supplies. Confirm HTTPS and API health from the device network. The last unrestricted lookup of this domain failed in this workspace; no gateway deployment URL has been verified.
-7. Configure Paystack's webhook URL as `https://api.lightpay.ng/api/v1/webhooks/paystack`. The gateway preserves raw request bytes and fiat checks the Paystack HMAC before provider verification and idempotent settlement.
+Free web services pause after inactivity and can take time to wake up. Background
+reconciliation and notification jobs do not run while the container is paused.
+The free database expires on **8 December 2026** unless upgraded. This deployment
+does not create any paid services or upgrade the database.
 
 ## Existing provider integrations
 

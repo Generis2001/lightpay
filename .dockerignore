@@ -10,5 +10,6 @@ apps/mobile/*
 **/.env
 **/.env.*
 !**/.env.example
-infra
+infra/*
+!infra/start-backend.cjs
 docs
