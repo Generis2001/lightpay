@@ -10,6 +10,7 @@ import {
 import { User } from '../users/user.entity';
 
 @Entity('user_devices')
+@Index('user_device_unique', ['userId', 'deviceId'], { unique: true })
 export class UserDevice {
   @PrimaryGeneratedColumn('uuid')
   id!: string;

@@ -37,6 +37,14 @@ export class WalletsController {
     return successResponse(beneficiaries);
   }
 
+  @Get('limits')
+  async limits(@Req() req: AuthRequest) { return successResponse(await this.walletsService.getLimits(req.user.sub)); }
+
+  @Get('virtual-account')
+  async getVirtualAccount(@Req() req: AuthRequest) {
+    return successResponse(await this.walletsService.getVirtualAccount(req.user.sub));
+  }
+
   @Post('beneficiaries/:id/favourite')
   async toggleFavourite(@Param('id') id: string, @Req() req: AuthRequest) {
     const beneficiary = await this.beneficiaryService.toggleFavourite(id, req.user.sub);

@@ -1,11 +1,11 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, ServiceUnavailableException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance } from 'axios';
 import { WalletsService } from '../wallets/wallets.service';
 import { Transaction } from '../transactions/transaction.entity';
-import { generateReference } from '../common/utils';
+import { requestFingerprint } from '../common/utils';
 
 /** VTpass serviceID mappings (https://vtpass.com/documentation) */
 const AIRTIME_SERVICE_ID: Record<string, string> = {
@@ -80,32 +80,43 @@ export class BillsService {
 
   async purchaseAirtime(params: {
     userId: string;
+    idempotencyKey: string;
     walletId: string;
     network: string;
     phone: string;
     amount: number;
   }) {
+    this.assertConfigured();
     const serviceID = AIRTIME_SERVICE_ID[params.network];
     if (!serviceID) throw new BadRequestException('Unsupported network');
 
-    const reference = generateReference('AIR');
+    const { idempotencyKey, ...draft } = params;
+    const fingerprint = requestFingerprint({ kind: 'AIR', ...draft });
+    const reference = await this.walletsService.paymentReference(params.userId, idempotencyKey, fingerprint, 'AIR', true);
+    const providerRequest = {
+      serviceID,
+      billersCode: params.phone,
+      amount: params.amount,
+      phone: params.phone,
+      request_id: reference,
+    };
     const tx = await this.walletsService.debitWallet({
       walletId: params.walletId,
       userId: params.userId,
       amount: params.amount,
       type: 'airtime',
       description: `₦${params.amount} ${params.network} Airtime to ${params.phone}`,
-      reference,
-      status: 'processing',
+      reference, metadata: { providerRequest },
+      status: 'processing', provider: 'vtpass', requestFingerprint: fingerprint,
     });
 
-    const result = await this.vtpassPay({
-      serviceID,
-      billersCode: params.phone,
-      amount: params.amount,
-      phone: params.phone,
-      request_id: reference,
-    });
+
+
+    if (!(await this.walletsService.claimProviderRequest(tx.id))) {
+      const current = await this.txRepo.findOne({ where: { id: tx.id } });
+      return { transaction: current, status: current?.status ?? 'processing' };
+    }
+    const result = await this.vtpassPay(providerRequest);
 
     return this.finalizeBillTx(tx.id, params.userId, result);
   }
@@ -128,38 +139,50 @@ export class BillsService {
 
   async purchaseData(params: {
     userId: string;
+    idempotencyKey: string;
     walletId: string;
     network: string;
     phone: string;
     planCode: string;
     amount: number;
   }) {
+    this.assertConfigured();
     const serviceID = DATA_SERVICE_ID[params.network];
     if (!serviceID) throw new BadRequestException('Unsupported network');
 
     const plans = await this.getDataPlans(params.network);
     const plan = plans.find((p) => p.code === params.planCode);
     if (!plan) throw new BadRequestException('Invalid data plan');
+    if (plan.amount !== params.amount) throw new ConflictException('Plan price changed. Refresh the plans and review the payment again.');
 
-    const reference = generateReference('DATA');
-    const tx = await this.walletsService.debitWallet({
-      walletId: params.walletId,
-      userId: params.userId,
-      amount: plan.amount,
-      type: 'data',
-      description: `${plan.allowance} ${params.network} Data to ${params.phone}`,
-      reference,
-      status: 'processing',
-    });
-
-    const result = await this.vtpassPay({
+    const { idempotencyKey, ...draft } = params;
+    const fingerprint = requestFingerprint({ kind: 'DATA', ...draft });
+    const reference = await this.walletsService.paymentReference(params.userId, idempotencyKey, fingerprint, 'DATA', true);
+    const providerRequest = {
       serviceID,
       billersCode: params.phone,
       variation_code: params.planCode,
       amount: plan.amount,
       phone: params.phone,
       request_id: reference,
+    };
+    const tx = await this.walletsService.debitWallet({
+      walletId: params.walletId,
+      userId: params.userId,
+      amount: plan.amount,
+      type: 'data',
+      description: `${plan.allowance} ${params.network} Data to ${params.phone}`,
+      reference, metadata: { providerRequest },
+      status: 'processing', provider: 'vtpass', requestFingerprint: fingerprint,
     });
+
+
+
+    if (!(await this.walletsService.claimProviderRequest(tx.id))) {
+      const current = await this.txRepo.findOne({ where: { id: tx.id } });
+      return { transaction: current, status: current?.status ?? 'processing' };
+    }
+    const result = await this.vtpassPay(providerRequest);
 
     return this.finalizeBillTx(tx.id, params.userId, result);
   }
@@ -181,16 +204,28 @@ export class BillsService {
 
   async payElectricity(params: {
     userId: string;
+    idempotencyKey: string;
     walletId: string;
     provider: string;
     meterNumber: string;
     meterType: string;
     amount: number;
   }) {
+    this.assertConfigured();
     const serviceID = ELECTRICITY_SERVICE_ID[params.provider];
     if (!serviceID) throw new BadRequestException('Unsupported electricity provider');
 
-    const reference = generateReference('ELEC');
+    const { idempotencyKey, ...draft } = params;
+    const fingerprint = requestFingerprint({ kind: 'ELEC', ...draft });
+    const reference = await this.walletsService.paymentReference(params.userId, idempotencyKey, fingerprint, 'ELEC', true);
+    const providerRequest = {
+      serviceID,
+      billersCode: params.meterNumber,
+      variation_code: params.meterType, // 'prepaid' | 'postpaid'
+      amount: params.amount,
+      phone: params.meterNumber,
+      request_id: reference,
+    };
     const tx = await this.walletsService.debitWallet({
       walletId: params.walletId,
       userId: params.userId,
@@ -198,22 +233,21 @@ export class BillsService {
       type: 'electricity',
       description: `₦${params.amount} ${params.provider} Electricity - ${params.meterNumber}`,
       reference,
-      status: 'processing',
-      metadata: {
+      status: 'processing', provider: 'vtpass', requestFingerprint: fingerprint,
+      metadata: { providerRequest,
         meterNumber: params.meterNumber,
         meterType: params.meterType,
         provider: params.provider,
       },
     });
 
-    const result = await this.vtpassPay({
-      serviceID,
-      billersCode: params.meterNumber,
-      variation_code: params.meterType, // 'prepaid' | 'postpaid'
-      amount: params.amount,
-      phone: params.meterNumber,
-      request_id: reference,
-    });
+
+
+    if (!(await this.walletsService.claimProviderRequest(tx.id))) {
+      const current = await this.txRepo.findOne({ where: { id: tx.id } });
+      return { transaction: current, status: current?.status ?? 'processing' };
+    }
+    const result = await this.vtpassPay(providerRequest);
 
     const finalized = await this.finalizeBillTx(tx.id, params.userId, result);
     return {
@@ -251,107 +285,99 @@ export class BillsService {
 
   async payCable(params: {
     userId: string;
+    idempotencyKey: string;
     walletId: string;
     provider: string;
     smartcardNumber: string;
     planCode: string;
     amount: number;
   }) {
+    this.assertConfigured();
     const serviceID = CABLE_SERVICE_ID[params.provider];
     if (!serviceID) throw new BadRequestException('Unsupported cable provider');
 
     const plans = await this.getCablePlans(params.provider);
     const plan = plans.find((p) => p.code === params.planCode);
     if (!plan) throw new BadRequestException('Invalid cable plan');
+    if (plan.amount !== params.amount) throw new ConflictException('Plan price changed. Refresh the plans and review the payment again.');
 
-    const reference = generateReference('CABLE');
-    const tx = await this.walletsService.debitWallet({
-      walletId: params.walletId,
-      userId: params.userId,
-      amount: plan.amount,
-      type: 'cable',
-      description: `${plan.name} - ${params.provider} (${params.smartcardNumber})`,
-      reference,
-      status: 'processing',
-    });
-
-    const result = await this.vtpassPay({
+    const { idempotencyKey, ...draft } = params;
+    const fingerprint = requestFingerprint({ kind: 'CABLE', ...draft });
+    const reference = await this.walletsService.paymentReference(params.userId, idempotencyKey, fingerprint, 'CABLE', true);
+    const providerRequest = {
       serviceID,
       billersCode: params.smartcardNumber,
       variation_code: params.planCode,
       amount: plan.amount,
       phone: params.smartcardNumber,
       request_id: reference,
+    };
+    const tx = await this.walletsService.debitWallet({
+      walletId: params.walletId,
+      userId: params.userId,
+      amount: plan.amount,
+      type: 'cable',
+      description: `${plan.name} - ${params.provider} (${params.smartcardNumber})`,
+      reference, metadata: { providerRequest },
+      status: 'processing', provider: 'vtpass', requestFingerprint: fingerprint,
     });
+
+
+
+    if (!(await this.walletsService.claimProviderRequest(tx.id))) {
+      const current = await this.txRepo.findOne({ where: { id: tx.id } });
+      return { transaction: current, status: current?.status ?? 'processing' };
+    }
+    const result = await this.vtpassPay(providerRequest);
 
     return this.finalizeBillTx(tx.id, params.userId, result);
   }
 
   // ─────────────────────── VTpass primitives ─────────────────────
 
-  /** Marks a debited bill transaction completed/failed based on provider result. */
+  private assertConfigured() {
+    if (!this.config.get('app.vtpassApiKey') || !this.config.get('app.vtpassSecretKey')) throw new ServiceUnavailableException('Bill payment provider is not configured');
+  }
+
   private async finalizeBillTx(txId: string, userId: string, result: VtpassResult) {
-    if (result.success) {
-      await this.txRepo.update(txId, {
-        status: 'completed',
-        providerRef: result.providerRef ?? null,
-        completedAt: new Date(),
-      });
-      const tx = await this.txRepo.findOne({ where: { id: txId } });
-      return { transaction: tx, providerRef: result.providerRef, status: 'completed' };
+    const metadata = { ...(result.token ? { token: result.token } : {}), ...(result.units ? { units: result.units } : {}) };
+    if (result.status === 'completed' || result.status === 'failed') {
+      const transaction = await this.walletsService.settleOutgoing(txId, result.status, result.providerRef, metadata);
+      return { transaction, providerRef: result.providerRef, status: transaction.status };
     }
-
-    await this.failAndReverse(txId, userId);
-    throw new BadRequestException({
-      code: 'PROVIDER_ERROR',
-      message: result.message || 'Bill payment failed',
-    });
+    await this.txRepo.update(txId, { providerStatus: 'processing', providerRef: result.providerRef ?? null });
+    return { transaction: await this.txRepo.findOne({ where: { id: txId } }), status: 'processing' };
   }
 
-  /** Reverses a debit by marking it failed then crediting the wallet back. */
-  private async failAndReverse(txId: string, userId: string) {
-    await this.txRepo.update(txId, { status: 'failed' });
-    await this.walletsService.reverseTransaction(txId, userId);
+  private parseResult(data: any): VtpassResult {
+    const purchased = data.content?.transactions ?? {};
+    const status = String(purchased.status ?? '').toLowerCase();
+    // Pending/unknown responses remain debited until a provider query confirms the result.
+    const result: VtpassResult = {
+      status: data.code === '000' && status === 'delivered' ? 'completed' : ['failed', 'reversed'].includes(status) ? 'failed' : 'processing',
+      providerRef: purchased.transactionId ?? data.requestId,
+      message: data.response_description,
+    };
+    const token = data.Token ?? data.token ?? purchased.token;
+    if (token) result.token = String(token);
+    const units = Number.parseFloat(data.units ?? purchased.units);
+    if (Number.isFinite(units)) result.units = units;
+    return result;
   }
 
-  private async vtpassPay(params: {
-    serviceID: string;
-    billersCode: string;
-    variation_code?: string;
-    amount: number;
-    phone: string;
-    request_id: string;
-  }): Promise<VtpassResult> {
-    try {
-      const { data } = await this.client.post('/pay', {
-        request_id: params.request_id,
-        serviceID: params.serviceID,
-        billersCode: params.billersCode,
-        variation_code: params.variation_code,
-        amount: params.amount,
-        phone: params.phone,
-      });
+  private async vtpassPay(params: Record<string, unknown>): Promise<VtpassResult> {
+    try { const { data } = await this.client.post('/pay', params); return this.parseResult(data); }
+    catch { return { status: 'processing', message: 'Awaiting provider confirmation' }; }
+  }
 
-      // VTpass: code '000' == transaction processed successfully
-      const success = data.code === '000';
-      const purchased = data.content?.transactions ?? {};
-      const result: VtpassResult = {
-        success,
-        providerRef: purchased.transactionId ?? data.requestId,
-        message: data.response_description,
-      };
-      const token = data.Token ?? data.token ?? purchased.token;
-      if (token) result.token = token;
-      if (data.units) result.units = parseFloat(data.units);
-      return result;
-    } catch (err) {
-      return {
-        success: false,
-        message:
-          (axios.isAxiosError(err) && err.response?.data?.response_description) ||
-          'Provider request failed',
-      };
+  async reconcile(tx: Transaction) {
+    this.assertConfigured();
+    if (!tx.metadata.providerAttemptedAt && await this.walletsService.claimProviderRequest(tx.id)) {
+      const request = tx.metadata.providerRequest as Record<string, unknown>;
+      if (request) return this.finalizeBillTx(tx.id, tx.userId, await this.vtpassPay(request));
     }
+    const { data } = await this.client.post('/requery', { request_id: tx.reference });
+    return this.finalizeBillTx(tx.id, tx.userId, this.parseResult(data));
   }
 
   private async vtpassVerify(
@@ -383,13 +409,13 @@ export class BillsService {
       });
       return data.content?.variations ?? data.content?.varations ?? [];
     } catch {
-      return [];
+      throw new ServiceUnavailableException("Unable to load provider plans. Please try again.");
     }
   }
 }
 
 interface VtpassResult {
-  success: boolean;
+  status: 'completed' | 'failed' | 'processing';
   providerRef?: string;
   message?: string;
   token?: string;

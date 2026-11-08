@@ -12,7 +12,10 @@ import { Wallet } from './wallet.entity';
 import { VirtualAccount } from './virtual-account.entity';
 import { Transaction } from '../transactions/transaction.entity';
 import { PaystackProvider } from '../providers/paystack.provider';
-import { generateReference } from '../common/utils';
+import { notifyTransaction } from '../notifications/notification-events';
+import { enforceSpend, paymentLimits } from './limits';
+import { PaymentRequest } from '../payments/payment.entity';
+import { generateReference, vtpassReference } from '../common/utils';
 
 @Injectable()
 export class WalletsService {
@@ -28,6 +31,7 @@ export class WalletsService {
   ) {}
 
   async createWallet(userId: string, currency: string): Promise<Wallet> {
+    if (currency !== 'NGN') throw new BadRequestException('This currency is not available yet');
     const existing = await this.walletRepo.findOne({ where: { userId, currency } });
     if (existing) {
       throw new ConflictException(`Wallet for ${currency} already exists`);
@@ -54,6 +58,15 @@ export class WalletsService {
   }
 
   async getUserWallets(userId: string): Promise<Wallet[]> {
+    // Registration is owned by auth; initialize the NGN wallet on first access.
+    // Serialize initial access across devices so one user gets one wallet.
+    await this.dataSource.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [userId]);
+      const existing = await manager.findOne(Wallet, { where: { userId, currency: 'NGN' } });
+      if (!existing) await manager.save(Wallet, manager.create(Wallet, {
+        userId, currency: 'NGN', type: 'naira', balance: '0', ledgerBalance: '0',
+      }));
+    });
     return this.walletRepo.find({
       where: { userId, isActive: true },
       relations: ['virtualAccount'],
@@ -74,29 +87,6 @@ export class WalletsService {
     return this.vaRepo.findOne({ where: { userId, isActive: true } });
   }
 
-  async provisionVirtualAccount(userId: string, walletId: string, accountName: string): Promise<VirtualAccount> {
-    const existing = await this.vaRepo.findOne({ where: { userId } });
-    if (existing) return existing;
-
-    const result = await this.paystackProvider.createDedicatedAccount({
-      userId,
-      accountName,
-    });
-
-    const va = this.vaRepo.create({
-      userId,
-      walletId,
-      accountNumber: result.accountNumber,
-      bankName: result.bankName,
-      bankCode: result.bankCode,
-      accountName,
-      provider: 'paystack',
-      providerRef: result.reference,
-    });
-
-    return this.vaRepo.save(va);
-  }
-
   async creditWallet(params: {
     walletId: string;
     userId: string;
@@ -107,6 +97,7 @@ export class WalletsService {
     reference?: string;
     metadata?: Record<string, unknown>;
   }): Promise<Transaction> {
+    if (!Number.isFinite(params.amount) || params.amount <= 0) throw new BadRequestException('Invalid credit amount');
     return this.dataSource.transaction(async (manager) => {
       const wallet = await manager.findOne(Wallet, {
         where: { id: params.walletId, userId: params.userId },
@@ -115,6 +106,13 @@ export class WalletsService {
 
       if (!wallet) throw new NotFoundException('Wallet not found');
 
+      if (params.reference) {
+        const existing = await manager.findOne(Transaction, { where: { reference: params.reference } });
+        if (existing) {
+          if (existing.userId !== params.userId || existing.walletId !== params.walletId || !new Decimal(existing.amount).eq(params.amount)) throw new ConflictException('Payment reference mismatch');
+          return existing;
+        }
+      }
       const balanceBefore = new Decimal(wallet.balance);
       const balanceAfter = balanceBefore.plus(params.amount);
 
@@ -139,7 +137,9 @@ export class WalletsService {
         completedAt: new Date(),
       });
 
-      return manager.save(Transaction, tx);
+      const saved = await manager.save(Transaction, tx);
+      await notifyTransaction(manager, saved);
+      return saved;
     });
   }
 
@@ -154,8 +154,12 @@ export class WalletsService {
     reference?: string;
     metadata?: Record<string, unknown>;
     status?: string;
+    provider?: string;
+    requestFingerprint?: string;
   }): Promise<Transaction> {
+    if (!Number.isFinite(params.amount) || params.amount <= 0 || !Number.isFinite(params.fee ?? 0) || (params.fee ?? 0) < 0) throw new BadRequestException('Invalid payment amount');
     return this.dataSource.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`spend:${params.userId}`]);
       const wallet = await manager.findOne(Wallet, {
         where: { id: params.walletId, userId: params.userId },
         lock: { mode: 'pessimistic_write' },
@@ -163,7 +167,16 @@ export class WalletsService {
 
       if (!wallet) throw new NotFoundException('Wallet not found');
 
+      if (!wallet.isActive || wallet.currency !== 'NGN') throw new BadRequestException('Wallet unavailable');
+      if (params.reference) {
+        const existing = await manager.findOne(Transaction, { where: { reference: params.reference } });
+        if (existing) {
+          if (existing.userId !== params.userId || existing.walletId !== params.walletId || existing.type !== params.type || !new Decimal(existing.amount).eq(params.amount) || existing.metadata.requestFingerprint !== params.requestFingerprint) throw new ConflictException('Idempotency key already used for a different payment');
+          return existing;
+        }
+      }
       const total = new Decimal(params.amount).plus(params.fee ?? 0);
+      await enforceSpend(manager, params.userId, total);
       const balanceBefore = new Decimal(wallet.balance);
 
       if (balanceBefore.lessThan(total)) {
@@ -191,7 +204,8 @@ export class WalletsService {
         currency: wallet.currency,
         description: params.description ?? null,
         narration: params.narration ?? null,
-        metadata: params.metadata ?? {},
+        metadata: { ...params.metadata, requestFingerprint: params.requestFingerprint },
+        provider: params.provider ?? null,
       });
 
       return manager.save(Transaction, tx);
@@ -199,21 +213,92 @@ export class WalletsService {
   }
 
   async reverseTransaction(transactionId: string, userId: string): Promise<void> {
-    const tx = await this.txRepo.findOne({ where: { id: transactionId, userId } });
-    if (!tx) throw new NotFoundException('Transaction not found');
-    if (tx.status !== 'failed' && tx.status !== 'pending') {
-      throw new BadRequestException('Only failed/pending transactions can be reversed');
-    }
-
-    await this.creditWallet({
-      walletId: tx.walletId,
-      userId,
-      amount: parseFloat(tx.amount) + parseFloat(tx.fee),
-      type: 'credit',
-      description: `Reversal for ${tx.reference}`,
-      reference: `REV-${tx.reference}`,
+    await this.dataSource.transaction(async (manager) => {
+      const tx = await manager.findOne(Transaction, {
+        where: { id: transactionId, userId }, lock: { mode: 'pessimistic_write' },
+      });
+      if (!tx) throw new NotFoundException('Transaction not found');
+      if (tx.status === 'reversed') return;
+      if (!['failed', 'pending'].includes(tx.status)) {
+        throw new BadRequestException('Only failed/pending transactions can be reversed');
+      }
+      const wallet = await manager.findOne(Wallet, {
+        where: { id: tx.walletId, userId }, lock: { mode: 'pessimistic_write' },
+      });
+      if (!wallet) throw new NotFoundException('Wallet not found');
+      const amount = new Decimal(tx.amount).plus(tx.fee);
+      const before = new Decimal(wallet.balance);
+      const after = before.plus(amount);
+      wallet.balance = after.toString();
+      wallet.ledgerBalance = after.toString();
+      await manager.save(Wallet, wallet);
+      await manager.save(Transaction, manager.create(Transaction, {
+        reference: `REV-${tx.reference}`, userId, walletId: tx.walletId,
+        type: 'credit', status: 'completed', amount: amount.toString(), fee: '0',
+        balanceBefore: before.toString(), balanceAfter: after.toString(),
+        currency: tx.currency, description: `Reversal for ${tx.reference}`, completedAt: new Date(),
+      }));
+      tx.status = 'reversed';
+      await manager.save(Transaction, tx);
     });
-
-    await this.txRepo.update(transactionId, { status: 'reversed' });
   }
+  async paymentReference(userId: string, key: string, fingerprint: string, prefix: string, bill = false) {
+    if (!/^[A-Za-z0-9_-]{16,120}$/.test(key)) throw new BadRequestException('A valid Idempotency-Key header is required');
+    const requestKey = generateReference('REQ', `${userId}:${key}`);
+    return this.dataSource.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [requestKey]);
+      const existing = await manager.findOne(PaymentRequest, { where: { requestKey } });
+      if (existing) {
+        if (existing.fingerprint !== fingerprint) throw new ConflictException('Idempotency key used for a different payment');
+        return existing.reference;
+      }
+      const reference = bill ? vtpassReference() : generateReference(prefix);
+      await manager.save(PaymentRequest, manager.create(PaymentRequest, { requestKey, reference, fingerprint }));
+      return reference;
+    });
+  }
+
+  async claimProviderRequest(txId: string) {
+    return this.dataSource.transaction(async (manager) => {
+      const tx = await manager.findOne(Transaction, { where: { id: txId }, lock: { mode: 'pessimistic_write' } });
+      if (!tx || tx.status !== 'processing' || tx.metadata.providerAttemptedAt) return false;
+      tx.metadata = { ...tx.metadata, providerAttemptedAt: new Date().toISOString() };
+      await manager.save(Transaction, tx);
+      return true;
+    });
+  }
+
+  async getLimits(userId: string) { return this.dataSource.transaction((manager) => paymentLimits(manager, userId)); }
+
+  async settleOutgoing(transactionId: string, state: 'completed' | 'failed' | 'reversed', providerRef?: string, metadata?: Record<string, unknown>) {
+    return this.dataSource.transaction(async (manager) => {
+      const tx = await manager.findOne(Transaction, { where: { id: transactionId }, lock: { mode: 'pessimistic_write' } });
+      if (!tx) throw new NotFoundException('Transaction not found');
+      if (tx.status === 'reversed' || (tx.status === 'completed' && state !== 'reversed')) return tx;
+      if (!['transfer_out', 'airtime', 'data', 'electricity', 'cable'].includes(tx.type)) throw new BadRequestException('Invalid outgoing transaction');
+      tx.providerRef = providerRef ?? tx.providerRef;
+      tx.providerStatus = state;
+      tx.metadata = { ...tx.metadata, ...metadata };
+      if (state === 'completed') {
+        tx.status = 'completed'; tx.completedAt = new Date();
+      } else {
+        const wallet = await manager.findOne(Wallet, { where: { id: tx.walletId, userId: tx.userId }, lock: { mode: 'pessimistic_write' } });
+        if (!wallet) throw new NotFoundException('Wallet not found');
+        const refund = new Decimal(tx.amount).plus(tx.fee);
+        const before = new Decimal(wallet.balance); const after = before.plus(refund);
+        wallet.balance = after.toString(); wallet.ledgerBalance = after.toString();
+        await manager.save(Wallet, wallet);
+        await manager.save(Transaction, manager.create(Transaction, {
+          reference: `REV-${tx.reference}`, userId: tx.userId, walletId: tx.walletId, type: 'credit', status: 'completed',
+          amount: refund.toString(), fee: '0', currency: tx.currency, balanceBefore: before.toString(), balanceAfter: after.toString(),
+          description: `Refund for ${tx.reference}`, metadata: { originalTransactionId: tx.id }, completedAt: new Date(),
+        }));
+        tx.status = 'reversed';
+      }
+      await manager.save(Transaction, tx);
+      await notifyTransaction(manager, tx);
+      return tx;
+    });
+  }
+
 }

@@ -8,14 +8,17 @@ WORKDIR /repo
 
 COPY package.json package-lock.json turbo.json tsconfig.base.json ./
 COPY packages/types/package.json packages/types/
+COPY apps/mobile/package.json apps/mobile/
+COPY services/auth/package.json services/auth/
+COPY services/fiat/package.json services/fiat/
 COPY services/gateway/package.json services/gateway/
-RUN npm ci
+RUN npm ci --workspace=@lightpay/gateway --include-workspace-root
 
 COPY packages/types packages/types
 COPY services/gateway services/gateway
 RUN npm run build --workspace=@lightpay/gateway
 
-RUN npm prune --omit=dev
+RUN npm prune --omit=dev --workspace=@lightpay/gateway --include-workspace-root
 
 # ── runner ─────────────────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
@@ -23,8 +26,7 @@ ENV NODE_ENV=production
 WORKDIR /repo
 
 COPY --from=builder /repo/node_modules ./node_modules
-COPY --from=builder /repo/services/gateway/dist ./services/gateway/dist
-COPY --from=builder /repo/services/gateway/package.json ./services/gateway/
+COPY --from=builder /repo/services/gateway ./services/gateway
 
 WORKDIR /repo/services/gateway
 EXPOSE 3000

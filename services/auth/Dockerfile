@@ -9,8 +9,11 @@ WORKDIR /repo
 # Install deps against the full workspace graph (lockfile at root).
 COPY package.json package-lock.json turbo.json tsconfig.base.json ./
 COPY packages/types/package.json packages/types/
+COPY apps/mobile/package.json apps/mobile/
 COPY services/auth/package.json services/auth/
-RUN npm ci
+COPY services/fiat/package.json services/fiat/
+COPY services/gateway/package.json services/gateway/
+RUN npm ci --workspace=@lightpay/auth-service --include-workspace-root
 
 # Source needed to compile the auth service + its @lightpay/types dependency.
 COPY packages/types packages/types
@@ -18,7 +21,7 @@ COPY services/auth services/auth
 RUN npm run build --workspace=@lightpay/auth-service
 
 # Prune dev dependencies for the runtime image.
-RUN npm prune --omit=dev
+RUN npm prune --omit=dev --workspace=@lightpay/auth-service --include-workspace-root
 
 # ── runner ─────────────────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
@@ -27,8 +30,7 @@ WORKDIR /repo
 
 COPY --from=builder /repo/node_modules ./node_modules
 COPY --from=builder /repo/packages ./packages
-COPY --from=builder /repo/services/auth/dist ./services/auth/dist
-COPY --from=builder /repo/services/auth/package.json ./services/auth/
+COPY --from=builder /repo/services/auth ./services/auth
 
 WORKDIR /repo/services/auth
 EXPOSE 3001

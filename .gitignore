@@ -13,7 +13,7 @@ build/
 # Environment
 .env
 .env.local
-.env.*.local
+.env.*
 !.env.example
 
 # Logs
@@ -48,10 +48,13 @@ ios/
 *.pem
 *.key
 *.cert
+**/google-service-account.json
+**/google-services.json
 
 # Turbo
 .turbo/
 
 # Misc
 .cache/
+.playwright-cli/
 tmp/

@@ -7,6 +7,7 @@ import {
   UseGuards,
   Request,
   Get,
+  Patch,
   Ip,
   Headers,
 } from '@nestjs/common';
@@ -14,6 +15,9 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RequestPhoneVerificationDto, VerifyPhoneDto } from './dto/verify-phone.dto';
+import { RequestEmailVerificationDto, VerifyEmailDto } from './dto/verify-email.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import {
   RegisterPhoneDto,
   RegisterEmailDto,
@@ -101,6 +105,15 @@ export class AuthController {
     return this.authService.changePin(req.user.sub, dto);
   }
 
+  @Post('pin/verify')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ short: { limit: 5, ttl: 60000 } })
+  async verifyPin(@Request() req: any, @Body() dto: SetPinDto) {
+    const verified = await this.authService.verifyPin(req.user.sub, dto.pin);
+    return { success: verified, data: { verified } };
+  }
+
   @Post('biometric/enable')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
@@ -117,8 +130,8 @@ export class AuthController {
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Refresh access token' })
-  async refreshToken(@Body() dto: RefreshTokenDto) {
-    return this.authService.refreshToken(dto);
+  async refreshToken(@Body() dto: RefreshTokenDto, @Headers('x-device-id') deviceId?: string) {
+    return this.authService.refreshToken(dto, deviceId);
   }
 
   @Post('logout')
@@ -127,7 +140,33 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Logout and revoke session' })
   async logout(@Request() req: any, @Body() body: { refreshToken?: string }) {
-    return this.authService.logout(req.user.sessionId, body.refreshToken);
+    return this.authService.logout(req.user.sub, req.user.sessionId);
+  }
+
+  @Post('phone/request')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ short: { limit: 3, ttl: 60000 } })
+  async requestPhone(@Request() req: any, @Body() dto: RequestPhoneVerificationDto) { return this.authService.requestPhoneVerification(req.user.sub, dto.phone); }
+  @Post('phone/verify')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ short: { limit: 5, ttl: 60000 } })
+  async verifyPhone(@Request() req: any, @Body() dto: VerifyPhoneDto) { return this.authService.verifyPhone(req.user.sub, dto.phone, dto.code); }
+
+  @Post('email/request')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ short: { limit: 3, ttl: 60000 } })
+  async requestEmail(@Request() req: any, @Body() dto: RequestEmailVerificationDto) { return this.authService.requestEmailVerification(req.user.sub, dto.email); }
+
+  @Post('email/verify')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ short: { limit: 5, ttl: 60000 } })
+  async verifyEmail(@Request() req: any, @Body() dto: VerifyEmailDto) { return this.authService.verifyEmail(req.user.sub, dto.email, dto.code); }
+
+  @Get('session')
+  @UseGuards(JwtAuthGuard)
+  async session(@Request() req: any) {
+    return { success: true, data: { userId: req.user.sub, sessionId: req.user.sessionId,
+      kycTier: req.user.kycTier, kycStatus: req.user.kycStatus } };
   }
 
   @Get('me')
@@ -136,5 +175,11 @@ export class AuthController {
   @ApiOperation({ summary: 'Get current user' })
   async getMe(@Request() req: any) {
     return this.authService.getMe(req.user.sub);
+  }
+
+  @Patch('me')
+  @UseGuards(JwtAuthGuard)
+  async updateProfile(@Request() req: any, @Body() dto: UpdateProfileDto) {
+    return this.authService.updateProfile(req.user.sub, dto);
   }
 }

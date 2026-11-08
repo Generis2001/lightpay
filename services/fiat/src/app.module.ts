@@ -1,7 +1,13 @@
+import { HealthModule } from './health/health.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { InternationalModule } from './international/international.module';
+import { CryptoModule } from './crypto/crypto.module';
+import { PaymentsModule } from './payments/payments.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { WalletsModule } from './wallets/wallets.module';
 import { TransfersModule } from './transfers/transfers.module';
 import { BillsModule } from './bills/bills.module';
@@ -10,11 +16,13 @@ import appConfig from './config/app.config';
 import databaseConfig from './config/database.config';
 
 @Module({
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
   imports: [
+    HealthModule,
     ConfigModule.forRoot({
       isGlobal: true,
       load: [appConfig, databaseConfig],
-      envFilePath: ['.env', '.env.local'],
+      envFilePath: ['.env.local', '.env'],
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
@@ -24,6 +32,10 @@ import databaseConfig from './config/database.config';
       }),
     }),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 60 }]),
+    InternationalModule,
+    CryptoModule,
+    PaymentsModule,
+    NotificationsModule,
     WalletsModule,
     TransfersModule,
     BillsModule,

@@ -1,6 +1,8 @@
 import { registerAs } from '@nestjs/config';
 
-export default registerAs('app', () => ({
+export default registerAs('app', () => {
+  if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32)) throw new Error('Set a shared JWT_SECRET of at least 32 characters before production startup');
+  return ({
   env: process.env.NODE_ENV ?? 'development',
   port: parseInt(process.env.PORT ?? '3001', 10),
   jwtSecret: process.env.JWT_SECRET ?? 'dev-jwt-secret-change-in-production',
@@ -16,4 +18,5 @@ export default registerAs('app', () => ({
   termiiApiKey: process.env.TERMII_API_KEY ?? '',
   sendgridApiKey: process.env.SENDGRID_API_KEY ?? '',
   fromEmail: process.env.FROM_EMAIL ?? 'noreply@lightpay.ng',
-}));
+});
+});

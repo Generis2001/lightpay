@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { SessionsService } from './sessions.service';
 import { ConfigService } from '@nestjs/config';
 
 interface JwtPayload {
@@ -14,19 +15,21 @@ interface JwtPayload {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(private readonly config: ConfigService) {
+  constructor(private readonly config: ConfigService, private readonly sessions: SessionsService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: config.get<string>('app.jwtSecret') ?? 'dev-jwt-secret-change-in-production',
+      secretOrKey: config.getOrThrow<string>('app.jwtSecret'),
     });
   }
 
-  validate(payload: JwtPayload) {
-    if (payload.type === 'refresh') {
+  async validate(payload: JwtPayload) {
+    if (payload.type !== 'access' || !payload.sessionId || !payload.sub) {
       throw new UnauthorizedException('Refresh token cannot be used as access token');
     }
+    const user = await this.sessions.validate(payload.sub, payload.sessionId);
     return {
+      kycTier: user.kycTier, kycStatus: user.kycStatus,
       sub: payload.sub,
       deviceId: payload.deviceId,
       sessionId: payload.sessionId,

@@ -1,10 +1,12 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { migrateDatabase } from './database/migrate';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  await migrateDatabase();
+  const app = await NestFactory.create(AppModule, { rawBody: true });
 
   app.enableCors({
     origin: process.env.NODE_ENV === 'production'
@@ -38,4 +40,4 @@ async function bootstrap() {
   console.log(`Fiat service running on port ${port}`);
 }
 
-bootstrap();
+bootstrap().catch(() => { console.error('Service startup failed; check database migrations and configuration.'); process.exitCode = 1; });

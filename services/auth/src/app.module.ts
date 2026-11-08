@@ -1,7 +1,10 @@
+import { KycModule } from './kyc/kyc.module';
+import { HealthModule } from './health/health.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { OtpModule } from './otp/otp.module';
@@ -10,7 +13,10 @@ import appConfig from './config/app.config';
 import databaseConfig from './config/database.config';
 
 @Module({
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
   imports: [
+    KycModule,
+    HealthModule,
     ConfigModule.forRoot({
       isGlobal: true,
       load: [appConfig, databaseConfig],
@@ -19,19 +25,11 @@ import databaseConfig from './config/database.config';
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        type: 'postgres',
-        host: config.getOrThrow<string>('database.host'),
-        port: config.getOrThrow<number>('database.port'),
-        username: config.getOrThrow<string>('database.username'),
-        password: config.getOrThrow<string>('database.password'),
-        database: config.getOrThrow<string>('database.name'),
-        schema: 'auth',
+        ...config.get('database'),
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
         migrations: [__dirname + '/database/migrations/**/*{.ts,.js}'],
-        synchronize:
-          config.get('app.env') === 'development' || process.env.DB_SYNCHRONIZE === 'true',
+        synchronize: false,
         logging: config.get('app.env') === 'development',
-        ssl: config.get('app.env') === 'production' ? { rejectUnauthorized: false } : false,
       }),
     }),
     ThrottlerModule.forRoot([

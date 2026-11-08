@@ -2,7 +2,8 @@
 **/dist
 **/.next
 **/.turbo
-apps
+apps/mobile/*
+!apps/mobile/package.json
 .git
 .github
 *.log

@@ -1,5 +1,8 @@
 import { Injectable, BadRequestException, UnprocessableEntityException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { OtpChallenge } from './otp.entity';
 import * as crypto from 'crypto';
 
 interface SendOtpParams {
@@ -15,69 +18,44 @@ interface VerifyOtpParams {
   purpose: string;
 }
 
-// In-memory OTP store for development (replace with Redis in production)
-const otpStore = new Map<string, { code: string; expiresAt: Date; attempts: number }>();
-
 @Injectable()
 export class OtpService {
-  constructor(private readonly config: ConfigService) {}
+  constructor(private readonly config: ConfigService, @InjectRepository(OtpChallenge) private readonly challenges: Repository<OtpChallenge>) {}
+
+  private key(params: SendOtpParams) { return crypto.createHash('sha256').update(`${params.method}:${params.identifier}:${params.purpose}`).digest('hex'); }
+  private codeHash(key: string, code: string) { return crypto.createHmac('sha256', this.config.getOrThrow<string>('app.jwtSecret')).update(`${key}:${code}`).digest('hex'); }
 
   async sendOtp(params: SendOtpParams): Promise<void> {
-    const code = this.generateCode();
+    const code = this.generateCode(); const key = this.key(params);
     const expirySeconds = this.config.get<number>('app.otpExpirySeconds') ?? 300;
-    const key = `${params.identifier}:${params.purpose}`;
-
-    otpStore.set(key, {
-      code,
-      expiresAt: new Date(Date.now() + expirySeconds * 1000),
-      attempts: 0,
-    });
-
-    if (params.method === 'phone') {
-      await this.sendSms(params.identifier, code);
-    } else {
-      await this.sendEmail(params.identifier, code, params.purpose);
+    const challenge = this.challenges.create({ key, codeHash: this.codeHash(key, code), expiresAt: new Date(Date.now() + expirySeconds * 1000), attempts: 0, usedAt: null });
+    await this.challenges.save(challenge);
+    try {
+      if (params.method === 'phone') await this.sendSms(params.identifier, code);
+      else await this.sendEmail(params.identifier, code, params.purpose);
+    } catch (error) {
+      await this.challenges.delete({ key, codeHash: challenge.codeHash });
+      throw error;
     }
   }
 
   async verifyOtp(params: VerifyOtpParams): Promise<void> {
-    const key = `${params.identifier}:${params.purpose}`;
-    const record = otpStore.get(key);
-
-    if (!record) {
-      throw new BadRequestException({
-        code: 'OTP_EXPIRED',
-        message: 'OTP has expired or does not exist. Please request a new one.',
-      });
-    }
-
-    if (new Date() > record.expiresAt) {
-      otpStore.delete(key);
-      throw new BadRequestException({
-        code: 'OTP_EXPIRED',
-        message: 'OTP has expired. Please request a new one.',
-      });
-    }
-
-    const maxAttempts = this.config.get<number>('app.otpMaxAttempts') ?? 5;
-    if (record.attempts >= maxAttempts) {
-      otpStore.delete(key);
-      throw new BadRequestException({
-        code: 'OTP_MAX_ATTEMPTS',
-        message: 'Too many attempts. Please request a new OTP.',
-      });
-    }
-
-    if (record.code !== params.code) {
-      record.attempts += 1;
-      otpStore.set(key, record);
-      throw new UnprocessableEntityException({
-        code: 'OTP_INVALID',
-        message: `Incorrect code. ${maxAttempts - record.attempts} attempt(s) remaining.`,
-      });
-    }
-
-    otpStore.delete(key);
+    const key = this.key(params);
+    const result = await this.challenges.manager.transaction(async (manager) => {
+      const record = await manager.findOne(OtpChallenge, { where: { key }, lock: { mode: 'pessimistic_write' } });
+      if (!record || record.usedAt || record.expiresAt <= new Date()) return 'expired';
+      const max = this.config.get<number>('app.otpMaxAttempts') ?? 5;
+      if (record.attempts >= max) return 'locked';
+      const expected = Buffer.from(record.codeHash, 'hex');
+      const actual = Buffer.from(this.codeHash(key, params.code), 'hex');
+      if (!crypto.timingSafeEqual(expected, actual)) {
+        record.attempts++; await manager.save(OtpChallenge, record); return 'invalid';
+      }
+      record.usedAt = new Date(); await manager.save(OtpChallenge, record); return 'verified';
+    });
+    if (result === 'expired') throw new BadRequestException({ code: 'OTP_EXPIRED', message: 'OTP expired or already used. Request a new code.' });
+    if (result === 'locked') throw new BadRequestException({ code: 'OTP_MAX_ATTEMPTS', message: 'Too many attempts. Request a new code.' });
+    if (result === 'invalid') throw new UnprocessableEntityException({ code: 'OTP_INVALID', message: 'Incorrect verification code.' });
   }
 
   private generateCode(): string {
@@ -92,6 +70,7 @@ export class OtpService {
 
     const response = await fetch('https://api.ng.termii.com/api/sms/send', {
       method: 'POST',
+      signal: AbortSignal.timeout(15000),
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         to: phone,
@@ -123,6 +102,7 @@ export class OtpService {
 
     await fetch('https://api.sendgrid.com/v3/mail/send', {
       method: 'POST',
+      signal: AbortSignal.timeout(15000),
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,

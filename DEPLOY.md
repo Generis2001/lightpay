@@ -1,105 +1,125 @@
-# LightPay backend — production go-live (Render)
+# LightPay deployment and provider setup
 
-This is the step-by-step checklist to take the backend live on [Render](https://render.com)
-using the blueprint in [`render.yaml`](./render.yaml). Everything the blueprint
-provisions is defined there; this doc covers the manual steps Render can't do for you
-(secrets, one-time DB setup, DNS).
+Prepared 8 November 2026. The source is prepared for deployment; no production deployment or connected-provider payment has been verified from this workspace. The installed APK does not change until a new build is installed.
 
-## What gets deployed
+## PostgreSQL URL
 
-| Component | Render type | Port | Public? |
-|-----------|-------------|------|---------|
-| `lightpay-gateway` | web (docker) | 3000 | ✅ yes |
-| `lightpay-auth`    | pserv (docker) | 3001 | private |
-| `lightpay-fiat`    | pserv (docker) | 3002 | private |
-| `lightpay-postgres`| managed Postgres 16 | — | private |
-| `lightpay-redis`   | keyvalue (Redis) | — | private |
+Auth and fiat need **the same PostgreSQL database**, with separate `auth` and `fiat` schemas. Fiat reads authoritative identity tiers and device sessions from auth tables. The gateway and mobile app do not connect to PostgreSQL.
 
-The gateway is the only public entrypoint; it reverse-proxies to auth and fiat over
-Render's private network. The `crypto`, `kyc`, and `notifications` services are **not**
-deployed — they have no source yet, and the gateway skips their proxy routes when the
-service URL is unset.
+Set `DATABASE_URL` in the private environment settings of **both** backend services:
 
-## Prerequisites
-
-- A Render account with this repo connected.
-- Live secret values ready to paste (see Step 2). These are **not** in git.
-
-## Step 1 — create the blueprint
-
-1. Render dashboard → **New → Blueprint**.
-2. Select this repo/branch. Render reads `render.yaml` and shows the resources above.
-3. Click **Apply**. Render provisions Postgres, Redis, and the three services.
-   The first build will pull dependencies and compile each service in its Docker image.
-
-## Step 2 — set the secret env vars (`sync: false`)
-
-These are blank until you set them in the dashboard (each service → **Environment**):
-
-- **All three services** — `JWT_SECRET`: generate one strong value and paste the
-  **same** string into gateway, auth, and fiat. Tokens won't validate across services otherwise.
-- **auth** — `TERMII_API_KEY` (SMS OTP), `SENDGRID_API_KEY` (email OTP).
-  OTP delivery fails closed if these are unset, so set them before go-live.
-- **fiat** — `PAYSTACK_SECRET_KEY`, `PAYSTACK_PUBLIC_KEY`, `VTPASS_API_KEY`,
-  `VTPASS_PUBLIC_KEY`, `VTPASS_SECRET_KEY`. Live keys; fiat uses the live VTpass
-  endpoint when `NODE_ENV=production`.
-
-## Step 3 — one-time database setup
-
-The entities live in dedicated `auth` and `fiat` Postgres schemas and use
-`@PrimaryGeneratedColumn('uuid')`, which needs the `uuid-ossp` extension. TypeORM's
-`synchronize` creates **tables** but **not** the schemas or the extension — create those
-once, before the first boot. Open the DB's PSQL shell (Render dashboard → the
-Postgres instance → **Connect → PSQL**) and run:
-
-```sql
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE SCHEMA IF NOT EXISTS auth;
-CREATE SCHEMA IF NOT EXISTS fiat;
+```dotenv
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/lightpay
 ```
 
-## Step 4 — first boot creates the tables
+This is a format example, not a working connection. Obtain the actual URL from your database host. Percent-encode reserved characters in the username/password when assembling a URL yourself. Keep it out of source control, chat, `EXPO_PUBLIC_*`, and the APK.
 
-`DB_SYNCHRONIZE=true` is set on auth and fiat in the blueprint for the **first** deploy.
-On boot, TypeORM builds all tables inside the schemas from Step 3. Confirm both services
-reach a running state in the Render logs.
+The [Render blueprint](render.yaml) reuses the existing `generis-postgresql-lightpay` database, PostgreSQL 18 in Oregon, through the `lightpay-database` environment group in Lightpay's Production environment. It does not provision another database. The group contains the existing **Internal Database URL**, `DATABASE_SSL=true`, and `DATABASE_SSL_REJECT_UNAUTHORIZED=false`; both private services import it. [Render documents](https://render.com/docs/postgresql-creating-connecting#ssl-modes-for-internal-connections) that internal TLS uses self-signed certificates, so this internal-only trust setting retains encryption while accepting the provider's certificate. Use the internal URL only for Render services in the same region.
 
-## Step 5 — lock the schema (important)
+Local ignored `.env.local` files in the root, auth, and fiat directories hold the **External Database URL** with TLS and certificate verification enabled. `.env.render.local` holds the internal URL and its internal-TLS settings. All four credential files have owner-only permissions. A read-only external connection check timed out here, so live SQL connectivity and migration readiness remain unverified. With another database host, update the group or private settings to that host's URL and documented TLS settings. Use a direct PostgreSQL connection or session pooler for migrations and reconciliation; a transaction pooler is incompatible with the session advisory locks used here.
 
-There are **no migrations** in this repo, so `synchronize` is the only schema tool —
-and leaving it on in steady state lets TypeORM auto-alter tables on every deploy, which
-can drop columns/data. Once the tables exist:
+`DATABASE_URL` takes precedence over `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB`. TLS and certificate verification are enabled by default in production. Use the host's documented TLS configuration, including the internal-only Render setting above; keep certificate verification enabled for external URLs. Database-host SSL parameters in the URL also affect the PostgreSQL driver's connection behavior.
 
-1. Set `DB_SYNCHRONIZE=false` on both `lightpay-auth` and `lightpay-fiat`.
-2. Redeploy both.
+Startup creates the service schema and applies checked-in migrations before accepting requests. The database role needs schema/table/index creation and the `uuid-ossp` extension (or have an administrator preinstall the extension). `DB_SYNCHRONIZE` must remain false. Existing duplicate wallets or references make the uniqueness migration fail for review; migrations do not delete conflicting financial data. Back up an existing database and review migrations before deploying.
 
-From then on, schema changes require either adding TypeORM migrations or a manual,
-reviewed `synchronize` window.
+## Services
 
-## Step 6 — point the app at the gateway
+| Component | Deployment | Port | Responsibilities |
+| --- | --- | --- | --- |
+| lightpay-gateway | Public Docker web service | 3000 | API proxy, aggregate health |
+| lightpay-auth | Private Docker service | 3001 | OTP, PIN, profiles, sessions, Prembly KYC |
+| lightpay-fiat | Private Docker service | 3002 | NGN ledger, Paystack, VTpass, Flutterwave, Fireblocks, notifications |
+| generis-postgresql-lightpay | Existing Render PostgreSQL 18, Oregon | 5432 | Persistent user, ledger and provider state |
 
-The mobile app calls `https://api.lightpay.ng/api/v1` (see `apps/mobile/eas.json`).
-In Render, add `api.lightpay.ng` as a **custom domain** on `lightpay-gateway` and create
-the CNAME record Render shows at your DNS provider. Until DNS resolves, use the
-`onrender.com` URL Render assigns the gateway.
+Crypto, KYC and notifications are modules in the existing services. No extra service URLs or ports are required. Docker Desktop/WSL integration was unavailable here, so Docker images still need a real build/run validation.
 
-## Recommended follow-ups (not blockers)
+## Deploy on Render
 
-- **Health endpoints.** Neither the gateway nor auth exposes an unauthenticated health
-  route, so the blueprint has no `healthCheckPath` (Render falls back to a TCP port
-  check). Add `GET /health` to the gateway and auth, then set `healthCheckPath` for
-  faster, more accurate health detection.
-- **Migrations.** Replace `synchronize` with TypeORM migrations for safe schema evolution.
-- **Redis type name.** The blueprint uses `type: keyvalue` (Render's current name for
-  Redis). If your account still shows the older `type: redis`, rename it in `render.yaml`.
+1. Connect the repository and choose **New → Blueprint** to review `render.yaml` in Lightpay's **Production** environment. The services are in Oregon to match the existing database and reuse its `lightpay-database` group. Review the paid service/Redis resources before provisioning them. The existing free database expires on **8 December 2026** unless upgraded; no upgrade has been performed.
+2. Link the existing `lightpay-authentication` environment group to gateway, auth, and fiat. It holds one generated `JWT_SECRET` of at least 32 characters; the blueprint imports the same group into all three services. Link `lightpay-database` only to auth and fiat. These groups must be in the target Production environment.
+3. Set SMS/email credentials on auth and payment-provider credentials on fiat, using [.env.example](.env.example) and the provider instructions below. New providers default to disabled.
+4. Deploy auth and fiat with migrations, then gateway. Auth must be healthy before protected fiat requests can validate sessions.
+5. Check gateway `GET /api/v1/health` over HTTPS; it checks both upstream services. Direct internal health endpoints are auth `/api/v1/health` and fiat `/health`. Do not publish the private services.
+6. Add `api.lightpay.ng` to the gateway and configure the DNS record Render supplies. Confirm HTTPS and API health from the device network. The last unrestricted lookup of this domain failed in this workspace; no gateway deployment URL has been verified.
+7. Configure Paystack's webhook URL as `https://api.lightpay.ng/api/v1/webhooks/paystack`. The gateway preserves raw request bytes and fiat checks the Paystack HMAC before provider verification and idempotent settlement.
 
-## Mobile APK
+## Existing provider integrations
 
-The Android APK is built with EAS using the `production-apk` profile
-(`EXPO_PUBLIC_API_URL=https://api.lightpay.ng/api/v1`). Build with:
+| Provider | Implemented use | Required configuration |
+| --- | --- | --- |
+| Paystack | Nigerian bank discovery/transfers, NGN dedicated accounts and card funding | `PAYSTACK_SECRET_KEY`; verified customer profile, dedicated-account and payout activation |
+| VTpass | Airtime, data, electricity, cable | `VTPASS_API_KEY`, `VTPASS_PUBLIC_KEY`, `VTPASS_SECRET_KEY` |
+| Termii | Phone OTP | `TERMII_API_KEY`, approved `TERMII_SENDER_ID` |
+| SendGrid | Email OTP | `SENDGRID_API_KEY`, verified `FROM_EMAIL` |
+
+Code presence does not establish that any account is configured. Provider credentials are still absent; the database-only local environment files do not activate payment or identity providers. Paystack receiving accounts/card funding require Tier 1 and a verified email/full name. The only receiving bank-account integration is Nigerian NGN. USD wallets/cards/FX and incoming accounts across African countries are still unimplemented.
+
+Card initialization persists its owner/reference before the provider call. If confirmation is uncertain, the app shows the reference and status lookup rather than resubmitting that intent. A lost checkout URL or process interruption may require support to inspect the reference; no automatic cancellation or timeout refund is claimed.
+
+## Prepare Flutterwave
+
+Official references: [bank transfers](https://developer.flutterwave.com/docs/bank-transfers), [API reference](https://developer.flutterwave.com/reference). This implementation uses V3 REST endpoints `/banks/{country}`, bank branches, `/transfers/rates`, `/transfers/fee`, `/transfers`, and verification by ID/reference.
+
+Configure fiat:
+
+```dotenv
+FLUTTERWAVE_ENABLED=false
+FLUTTERWAVE_SECRET_KEY=
+FLUTTERWAVE_ENABLED_COUNTRIES=
+```
+
+Prepared payout currencies/countries: NG/NGN, GH/GHS, KE/KES, UG/UGX, TZ/TZS, RW/RWF, ZA/ZAR and ZM/ZMW. These are candidates, not a coverage guarantee. Activate only country codes your Flutterwave account is approved to pay; the provider bank list is authoritative. Beneficiaries receive local currency from a NGN source wallet. Tier 2 and a verified phone/name are required.
+
+Before enabling, test the actual account's bank/branch metadata, sender fields, source/destination amounts, fees, rate movement and payout status payloads. Current code deliberately rejects rates that do not confirm the requested NGN source amount. Settlement requires exact reference/currency/destination amount and a `debit_amount` matching the authorized NGN total. A missing or mismatched debit remains processing for review. V3 rate lookup is not a guaranteed locked FX quote; this adapter needs account-specific contract validation before live availability. Uncertain submissions require provider/operator reconciliation. No incoming African bank-account integration was added through Flutterwave.
+
+## Prepare Fireblocks
+
+Official references: [developer portal](https://developers.fireblocks.com/), [official TypeScript SDK](https://github.com/fireblocks/ts-sdk). The adapter uses `@fireblocks/ts-sdk` for vaults, addresses, validation, network-fee estimates, transfers and completed-deposit reconciliation.
+
+Configure fiat with `FIREBLOCKS_API_KEY`, PEM `FIREBLOCKS_SECRET_KEY` and the correct workspace `FIREBLOCKS_BASE_PATH`. Keep `FIREBLOCKS_ENABLED=false` until the workspace, custody policy and network mapping are verified. The four `FIREBLOCKS_ASSET_*` defaults are BTC, ETH, SOL and BNB_BSC. Do not substitute a test-network asset ID while displaying a main-network deposit label; test networks must be tested in an isolated environment with explicit matching labels.
+
+Tier 2 is required. Vaults are mapped per user, addresses per asset/network, and provider-confirmed deposits are credited once at up to 18-digit precision. Each quote authorizes a gross wallet debit including the network fee; the recipient receives the debit less actual fee. A mined failure retains consumed gas and refunds the unspent amount. External transaction IDs support provider reconciliation.
+
+Before enabling, verify vault/address recovery after interruption, supported asset IDs and decimals, custody balances/policies, fee currency, provider rejection handling, and deposit/outgoing confirmations on all four networks. Polling is implemented; no Fireblocks webhook integration or real custody transaction was tested. Uncertain/rejected submissions without a retrievable provider transaction may require operator resolution.
+
+## Prepare Prembly
+
+Official references: [Prembly documentation](https://docs.prembly.com/), [Identitypass Node SDK](https://github.com/Identitypass/identitypass-nodejs). The account's supported URL/schema must be confirmed with Prembly; current documentation contains a placeholder server URL.
+
+Configure auth with `PREMBLY_API_KEY`, any required `PREMBLY_APP_ID`, `PREMBLY_API_BASE_URL` (actual HTTPS base including trailing slash), `PREMBLY_API_FORMAT`, and a dedicated stable `PREMBLY_IDENTITY_HASH_KEY` of at least 32 characters. Keep `PREMBLY_ENABLED=false` until compatibility is tested. `PREMBLY_ENVIRONMENT=live` is required to grant production tiers.
+
+- `current_v1`: documented path suffixes `bvn_w_face/`, `nin_w_face/`, `liveliness_check/`, relative to the account-confirmed base URL. Do not use the example.com server from the docs.
+- `legacy_v2`: official legacy SDK base `https://api.myidentitypay.com/api/v2/biometrics/merchant/`; relative paths `data/verification/bvn_w_face`, `data/verification/nin`, `face/liveliness_check`. Confirm NIN face evidence is present for your account; absence fails verification.
+
+The app captures a camera selfie and consent. Identity number, names, date of birth, explicit face match and liveness confidence must agree; HTTP success alone grants no tier. BVN grants Tier 1; NIN after BVN grants Tier 2. Raw identity numbers/selfies are not persisted; masked identifiers, keyed hashes and a proof summary are retained. Do not rotate the identity hash key without a migration plan. Test real consent/face/liveness decisions and review the verification/privacy policy before enabling.
+
+## Notifications and account limits
+
+Persisted in-app notifications and a PostgreSQL push outbox are implemented. Configure EAS/FCM Android push credentials; set `EXPO_ACCESS_TOKEN` if enhanced Expo push security is enabled. Test permission, token registration, logout and delivery on a device. Push tickets are stored, but receipt polling/delivery confirmation remains unimplemented. A push ticket does not prove delivery.
+
+The backend enforces Nigeria-calendar-day outgoing NGN limits: Tier 0 ₦20,000/day and per payment; Tier 1 ₦1,000,000/day and per payment; Tier 2 ₦10,000,000/day and ₦1,000,000 per payment, including fees. These use the stricter limits in the repository security requirements and still need product/provider approval. The documented Tier 0 ₦100,000 balance cap is returned by the limits API but is not universally enforced on credits; a hold/review policy for external deposits and refunds remains needed before accepting unverified-user funding. Current provider funding/provisioning requires Tier 1.
+
+## Validate and install the APK
+
+From the repository root:
 
 ```bash
-cd apps/mobile && eas build --platform android --profile production-apk
+npm run type-check
+npm run build --workspace=@lightpay/auth-service
+npm run build --workspace=@lightpay/fiat-service
+npm run build --workspace=@lightpay/gateway
+npm run test:integration
 ```
 
-The build runs on EAS servers; the install/download link appears when it finishes.
+Database regression tests run only when `LIGHTPAY_TEST_DATABASE_URL` points at an isolated PostgreSQL test host with permission to create/drop a uniquely named `lightpay_test_*` database. They do not use a production database. Tests without that variable skip database cases.
+
+Build the Android installable APK with EAS:
+
+```bash
+cd apps/mobile
+eas build --platform android --profile production-apk --non-interactive
+```
+
+`production-apk` embeds `EXPO_PUBLIC_API_URL=https://api.lightpay.ng/api/v1` and increments the Android version code. Install the resulting APK on the device, then check cold launch, sign-in/session recovery, PIN, back navigation, camera/KYC/QR, biometrics, sharing, push and connectivity. Browser UI mocks and Hermes export checks do not replace installed-device or provider-account validation. Blank LightPay launcher/splash artwork still needs approved branding.
+
+The completed version-code-6 APK is available [here](https://expo.dev/artifacts/eas/Ug-_87MOk0aEsVI61VnnjcxWMMji17LtTj02N27Us9Q.apk). It contains the mobile changes and production API URL; installing it does not deploy the backend or activate providers.

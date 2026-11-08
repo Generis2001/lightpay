@@ -39,9 +39,9 @@ export class TransactionsController {
 
     if (type && type !== 'all') {
       const typeMap: Record<string, string[]> = {
-        credit: ['credit', 'transfer_in'],
-        debit: ['transfer_out', 'airtime', 'data', 'electricity', 'cable'],
-        transfers: ['transfer_in', 'transfer_out'],
+        credit: ['credit', 'transfer_in', 'crypto_in'],
+        debit: ['transfer_out', 'crypto_out', 'airtime', 'data', 'electricity', 'cable'],
+        transfers: ['transfer_in', 'transfer_out', 'crypto_in', 'crypto_out'],
         airtime: ['airtime'],
         data: ['data'],
         bills: ['electricity', 'cable'],

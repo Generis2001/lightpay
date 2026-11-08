@@ -11,6 +11,7 @@ import { Beneficiary } from '../wallets/beneficiary.entity';
 import { WalletsService } from '../wallets/wallets.service';
 import { PaystackProvider } from '../providers/paystack.provider';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { TransactionPinGuard } from '../common/guards/transaction-pin.guard';
 
 @Module({
   imports: [
@@ -23,7 +24,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
     }),
   ],
   controllers: [BillsController],
-  providers: [BillsService, WalletsService, PaystackProvider, JwtAuthGuard],
+  providers: [BillsService, WalletsService, PaystackProvider, JwtAuthGuard, TransactionPinGuard],
   exports: [BillsService],
 })
 export class BillsModule {}

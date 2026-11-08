@@ -12,6 +12,7 @@ import { Transaction } from '../transactions/transaction.entity';
 import { VirtualAccount } from './virtual-account.entity';
 
 @Entity('wallets')
+@Index('wallet_user_currency_unique', ['userId', 'currency'], { unique: true })
 export class Wallet {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -26,10 +27,10 @@ export class Wallet {
   @Column({ type: 'varchar', length: 10 })
   currency!: string;
 
-  @Column({ type: 'decimal', precision: 20, scale: 8, default: 0 })
+  @Column({ type: 'decimal', precision: 38, scale: 18, default: 0 })
   balance!: string;
 
-  @Column({ type: 'decimal', precision: 20, scale: 8, default: 0, name: 'ledger_balance' })
+  @Column({ type: 'decimal', precision: 38, scale: 18, default: 0, name: 'ledger_balance' })
   ledgerBalance!: string;
 
   @Column({ default: true, name: 'is_active' })

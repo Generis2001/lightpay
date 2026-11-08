@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Body,
+  Headers,
   Query,
   UseGuards,
   Req,
@@ -12,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { TransactionPinGuard } from '../common/guards/transaction-pin.guard';
 import { BillsService } from './bills.service';
 import { WalletsService } from '../wallets/wallets.service';
 import {
@@ -46,17 +48,18 @@ export class BillsController {
   }
 
   @Post('airtime')
+  @UseGuards(TransactionPinGuard)
   @HttpCode(HttpStatus.OK)
-  async purchaseAirtime(@Body() dto: PurchaseAirtimeDto, @Req() req: AuthRequest) {
+  async purchaseAirtime(@Body() dto: PurchaseAirtimeDto, @Req() req: AuthRequest, @Headers('idempotency-key') key: string) {
     const wallet = await this.getNgnWallet(req.user.sub);
     const result = await this.billsService.purchaseAirtime({
-      userId: req.user.sub,
+      userId: req.user.sub, idempotencyKey: key,
       walletId: wallet.id,
       network: dto.network,
       phone: dto.phone,
       amount: dto.amount,
     });
-    return successResponse(result, 'Airtime purchased successfully');
+    return successResponse(result, 'Airtime request accepted');
   }
 
   @Get('data/plans')
@@ -66,11 +69,12 @@ export class BillsController {
   }
 
   @Post('data')
+  @UseGuards(TransactionPinGuard)
   @HttpCode(HttpStatus.OK)
-  async purchaseData(@Body() dto: PurchaseDataDto, @Req() req: AuthRequest) {
+  async purchaseData(@Body() dto: PurchaseDataDto, @Req() req: AuthRequest, @Headers('idempotency-key') key: string) {
     const wallet = await this.getNgnWallet(req.user.sub);
     const result = await this.billsService.purchaseData({
-      userId: req.user.sub,
+      userId: req.user.sub, idempotencyKey: key,
       walletId: wallet.id,
       network: dto.network,
       phone: dto.phone,
@@ -91,18 +95,19 @@ export class BillsController {
   }
 
   @Post('electricity')
+  @UseGuards(TransactionPinGuard)
   @HttpCode(HttpStatus.OK)
-  async payElectricity(@Body() dto: PayElectricityDto, @Req() req: AuthRequest) {
+  async payElectricity(@Body() dto: PayElectricityDto, @Req() req: AuthRequest, @Headers('idempotency-key') key: string) {
     const wallet = await this.getNgnWallet(req.user.sub);
     const result = await this.billsService.payElectricity({
-      userId: req.user.sub,
+      userId: req.user.sub, idempotencyKey: key,
       walletId: wallet.id,
       provider: dto.disco,
       meterNumber: dto.meterNumber,
       meterType: dto.meterType,
       amount: dto.amount,
     });
-    return successResponse(result, 'Electricity payment successful');
+    return successResponse(result, 'Electricity request accepted');
   }
 
   @Get('cable/plans')
@@ -121,17 +126,18 @@ export class BillsController {
   }
 
   @Post('cable')
+  @UseGuards(TransactionPinGuard)
   @HttpCode(HttpStatus.OK)
-  async payCable(@Body() dto: PayCableDto, @Req() req: AuthRequest) {
+  async payCable(@Body() dto: PayCableDto, @Req() req: AuthRequest, @Headers('idempotency-key') key: string) {
     const wallet = await this.getNgnWallet(req.user.sub);
     const result = await this.billsService.payCable({
-      userId: req.user.sub,
+      userId: req.user.sub, idempotencyKey: key,
       walletId: wallet.id,
       provider: dto.provider,
       smartcardNumber: dto.smartCardNumber,
       planCode: dto.planCode,
       amount: dto.amount,
     });
-    return successResponse(result, 'Cable TV payment successful');
+    return successResponse(result, 'Cable request accepted');
   }
 }

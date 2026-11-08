@@ -1,13 +1,17 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { migrateDatabase } from './database/migrate';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
+  await migrateDatabase();
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: ['error', 'warn', 'log'],
   });
 
+  app.useBodyParser('json', { limit: '6mb' });
   app.setGlobalPrefix('api/v1');
 
   app.useGlobalPipes(
@@ -39,4 +43,4 @@ async function bootstrap() {
   console.log(`Auth service running on port ${port}`);
 }
 
-bootstrap();
+bootstrap().catch(() => { console.error('Service startup failed; check database migrations and configuration.'); process.exitCode = 1; });

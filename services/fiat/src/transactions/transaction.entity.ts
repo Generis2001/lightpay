@@ -35,16 +35,16 @@ export class Transaction {
   @Index()
   status!: string;
 
-  @Column({ type: 'decimal', precision: 20, scale: 8 })
+  @Column({ type: 'decimal', precision: 38, scale: 18 })
   amount!: string;
 
-  @Column({ type: 'decimal', precision: 20, scale: 8, default: 0 })
+  @Column({ type: 'decimal', precision: 38, scale: 18, default: 0 })
   fee!: string;
 
-  @Column({ type: 'decimal', precision: 20, scale: 8, name: 'balance_before' })
+  @Column({ type: 'decimal', precision: 38, scale: 18, name: 'balance_before' })
   balanceBefore!: string;
 
-  @Column({ type: 'decimal', precision: 20, scale: 8, name: 'balance_after' })
+  @Column({ type: 'decimal', precision: 38, scale: 18, name: 'balance_after' })
   balanceAfter!: string;
 
   @Column({ type: 'varchar', length: 10 })

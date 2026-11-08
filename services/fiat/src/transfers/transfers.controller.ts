@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Body,
+  Headers,
   Query,
   UseGuards,
   Req,
@@ -12,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { TransactionPinGuard } from '../common/guards/transaction-pin.guard';
 import { TransfersService } from './transfers.service';
 import { WalletsService } from '../wallets/wallets.service';
 import { BankTransferDto, ResolveAccountDto } from './dto';
@@ -42,8 +44,9 @@ export class TransfersController {
   }
 
   @Post('bank')
+  @UseGuards(TransactionPinGuard)
   @HttpCode(HttpStatus.OK)
-  async bankTransfer(@Body() dto: BankTransferDto, @Req() req: AuthRequest) {
+  async bankTransfer(@Body() dto: BankTransferDto, @Req() req: AuthRequest, @Headers('idempotency-key') key: string) {
     const wallets = await this.walletsService.getUserWallets(req.user.sub);
     const ngnWallet = wallets.find((w) => w.currency === 'NGN');
     if (!ngnWallet) throw new BadRequestException('NGN wallet not found');
@@ -58,7 +61,7 @@ export class TransfersController {
       narration: dto.narration,
       saveBeneficiary: true,
       pin: dto.pin,
-    });
+    }, key);
 
     return successResponse(receipt, 'Transfer initiated successfully');
   }

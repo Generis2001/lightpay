@@ -12,6 +12,9 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "test": "turbo run test",
+    "test:integration": "node --test tests/*.test.cjs",
+    "web": "npm run web --workspace=@lightpay/mobile",
+    "build:apk": "npm run build:android:apk --workspace=@lightpay/mobile",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
     "mobile": "turbo run dev --filter=@lightpay/mobile",
     "gateway": "turbo run dev --filter=@lightpay/gateway",
@@ -28,7 +31,7 @@
     "typescript": "^5.7.3",
     "@types/node": "^22.10.5"
   },
-  "packageManager": "yarn@4.6.0",
+  "packageManager": "npm@10.9.0",
   "engines": {
     "node": ">=20.0.0"
   }

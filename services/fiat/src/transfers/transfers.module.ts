@@ -12,6 +12,7 @@ import { WalletsService } from '../wallets/wallets.service';
 import { BeneficiaryService } from '../wallets/beneficiary.service';
 import { VirtualAccount } from '../wallets/virtual-account.entity';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { TransactionPinGuard } from '../common/guards/transaction-pin.guard';
 
 @Module({
   imports: [
@@ -24,7 +25,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
     }),
   ],
   controllers: [TransfersController],
-  providers: [TransfersService, WalletsService, BeneficiaryService, PaystackProvider, JwtAuthGuard],
+  providers: [TransfersService, WalletsService, BeneficiaryService, PaystackProvider, JwtAuthGuard, TransactionPinGuard],
   exports: [TransfersService],
 })
 export class TransfersModule {}

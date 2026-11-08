@@ -4,12 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "nest start --watch",
-    "build": "nest build",
+    "build": "tsc -p tsconfig.json",
     "start": "node dist/main",
     "lint": "eslint . --ext .ts",
     "type-check": "tsc --noEmit",
     "test": "jest",
-    "db:migrate": "typeorm migration:run -d src/database/data-source.ts",
+    "db:migrate": "node dist/database/migrate.js",
     "db:seed": "ts-node src/database/seed.ts"
   },
   "dependencies": {
@@ -26,6 +26,7 @@
     "argon2": "^0.41.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
+    "dotenv": "^16.6.1",
     "ioredis": "^5.4.2",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",

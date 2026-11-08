@@ -10,6 +10,7 @@ import {
 import { Wallet } from './wallet.entity';
 
 @Entity('virtual_accounts')
+@Index('virtual_account_user_unique', ['userId'], { unique: true })
 export class VirtualAccount {
   @PrimaryGeneratedColumn('uuid')
   id!: string;

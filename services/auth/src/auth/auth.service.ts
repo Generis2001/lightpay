@@ -11,7 +11,7 @@ import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as argon2 from 'argon2';
-import { v4 as uuidv4 } from 'uuid';
+import { SessionsService } from './sessions.service';
 import { User } from '../users/user.entity';
 import { UserAuth } from '../users/user-auth.entity';
 import { OtpService } from '../otp/otp.service';
@@ -39,6 +39,7 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly otpService: OtpService,
     private readonly devicesService: DevicesService,
+    private readonly sessionsService: SessionsService,
   ) {}
 
   async registerPhone(dto: RegisterPhoneDto, ip: string): Promise<ApiResponse> {
@@ -114,6 +115,7 @@ export class AuthService {
     deviceId?: string,
     userAgent?: string,
   ): Promise<ApiResponse> {
+    if (deviceId && deviceId.length > 255) throw new BadRequestException("Invalid device identifier");
     await this.otpService.verifyOtp({
       identifier: dto.identifier,
       method: dto.method as 'phone' | 'email',
@@ -123,8 +125,10 @@ export class AuthService {
 
     if (dto.purpose === 'registration') {
       const user = await this.createUser(dto.identifier, dto.method as 'phone' | 'email');
+      if (deviceId) await this.devicesService.registerDevice({ userId: user.id, deviceId });
+      const tokens = await this.generateTokens(user.id, deviceId);
       return ApiResponse.success(
-        { user: this.serializeUser(user), isNewUser: true },
+        { user: this.serializeUser(user), tokens, isNewUser: true },
         'Registration successful',
       );
     }
@@ -144,10 +148,12 @@ export class AuthService {
       }
 
       if (!user) throw new NotFoundException('User not found');
+      if (!user.isActive || user.isBlocked) throw new ForbiddenException('Account suspended');
 
       user.lastLoginAt = new Date();
       await this.userRepo.save(user);
 
+      if (deviceId) await this.devicesService.registerDevice({ userId: user.id, deviceId });
       const tokens = await this.generateTokens(user.id, deviceId);
 
       return ApiResponse.success(
@@ -181,6 +187,9 @@ export class AuthService {
     let userAuth = await this.userAuthRepo.findOne({ where: { userId } });
     if (!userAuth) {
       userAuth = this.userAuthRepo.create({ userId });
+    }
+    if (userAuth.pinHash) {
+      throw new BadRequestException('Use Change PIN to update an existing PIN.');
     }
 
     userAuth.pinHash = await argon2.hash(pin, {
@@ -260,22 +269,13 @@ export class AuthService {
     return ApiResponse.success({ biometricEnabled: true }, 'Biometric enabled');
   }
 
-  async refreshToken(dto: RefreshTokenDto): Promise<ApiResponse> {
-    // Validate refresh token — simplified implementation
-    // In production: look up refresh token in DB, verify not revoked
-    try {
-      const payload = this.jwtService.verify(dto.refreshToken, {
-        secret: this.config.getOrThrow<string>('app.jwtSecret'),
-      });
-      const tokens = await this.generateTokens(payload.sub, payload.deviceId);
-      return ApiResponse.success({ tokens }, 'Token refreshed');
-    } catch {
-      throw new UnauthorizedException({ code: 'UNAUTHORIZED', message: 'Invalid refresh token' });
-    }
+  async refreshToken(dto: RefreshTokenDto, deviceId?: string): Promise<ApiResponse> {
+    const tokens = await this.sessionsService.refresh(dto.refreshToken, deviceId);
+    return ApiResponse.success({ tokens }, 'Token refreshed');
   }
 
-  async logout(sessionId?: string, refreshToken?: string): Promise<ApiResponse> {
-    // Revoke session in Redis/DB
+  async logout(userId: string, sessionId: string): Promise<ApiResponse> {
+    await this.sessionsService.revoke(userId, sessionId);
     return ApiResponse.success({ loggedOut: true }, 'Logged out');
   }
 
@@ -314,6 +314,50 @@ export class AuthService {
     return true;
   }
 
+  async requestPhoneVerification(userId: string, phone: string) {
+    const existing = await this.userRepo.findOne({ where: { phone } });
+    if (existing && existing.id !== userId) throw new ConflictException('Phone already belongs to another account');
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (user?.phoneVerified && user.phone !== phone) throw new BadRequestException('Contact changes require account recovery support');
+    await this.otpService.sendOtp({ identifier: phone, method: 'phone', purpose: `phone:${userId}` });
+    return ApiResponse.success({ sent: true }, 'Verification code sent');
+  }
+  async verifyPhone(userId: string, phone: string, code: string) {
+    await this.otpService.verifyOtp({ identifier: phone, method: 'phone', code, purpose: `phone:${userId}` });
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user || (user.phoneVerified && user.phone !== phone)) throw new BadRequestException('Contact cannot be changed');
+    await this.userRepo.update(userId, { phone, phoneVerified: true }); return this.getMe(userId);
+  }
+
+  async requestEmailVerification(userId: string, email: string) {
+    email = email.trim().toLowerCase();
+    const existing = await this.userRepo.findOne({ where: { email } });
+    if (existing && existing.id !== userId) throw new ConflictException('Email already belongs to another account');
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (user?.emailVerified && user.email !== email) throw new BadRequestException('Contact changes require account recovery support');
+    await this.otpService.sendOtp({ identifier: email, method: 'email', purpose: `email:${userId}` });
+    return ApiResponse.success({ sent: true }, 'Verification code sent');
+  }
+
+  async verifyEmail(userId: string, email: string, code: string) {
+    email = email.trim().toLowerCase();
+    await this.otpService.verifyOtp({ identifier: email, method: 'email', code, purpose: `email:${userId}` });
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user || (user.emailVerified && user.email !== email)) throw new BadRequestException('Contact cannot be changed');
+    await this.userRepo.update(userId, { email, emailVerified: true });
+    return this.getMe(userId);
+  }
+
+  async updateProfile(userId: string, profile: { firstName: string; lastName: string }): Promise<ApiResponse> {
+    const firstName = profile.firstName.trim();
+    const lastName = profile.lastName.trim();
+    if (!firstName || !lastName) throw new BadRequestException('Enter your first and last name');
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (user?.kycTier && user.kycStatus === 'approved' && (user.firstName !== firstName || user.lastName !== lastName)) throw new BadRequestException('Verified names require a new identity review to change');
+    await this.userRepo.update(userId, { firstName, lastName });
+    return this.getMe(userId);
+  }
+
   private async createUser(identifier: string, method: 'phone' | 'email'): Promise<User> {
     const user = this.userRepo.create({
       phone: method === 'phone' ? identifier : null,
@@ -331,23 +375,7 @@ export class AuthService {
   }
 
   private async generateTokens(userId: string, deviceId?: string) {
-    const sessionId = uuidv4();
-    const payload = { sub: userId, deviceId, sessionId };
-
-    const accessToken = this.jwtService.sign(payload, {
-      expiresIn: this.config.get('app.jwtExpiresIn') ?? '15m',
-    });
-
-    const refreshToken = this.jwtService.sign(
-      { ...payload, type: 'refresh' },
-      { expiresIn: this.config.get('app.refreshTokenExpiresIn') ?? '30d' },
-    );
-
-    return {
-      accessToken,
-      refreshToken,
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-    };
+    return this.sessionsService.create(userId, deviceId);
   }
 
   private generateReferralCode(): string {
