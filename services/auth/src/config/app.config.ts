@@ -16,6 +16,8 @@ export default registerAs('app', () => {
   pinLockoutDuration: parseInt(process.env.PIN_LOCKOUT_DURATION ?? '86400', 10), // 24h
   smsProvider: process.env.SMS_PROVIDER ?? 'termii',
   termiiApiKey: process.env.TERMII_API_KEY ?? '',
+  emailProvider: process.env.EMAIL_PROVIDER ?? (process.env.BREVO_API_KEY ? 'brevo' : 'sendgrid'),
+  brevoApiKey: process.env.BREVO_API_KEY ?? '',
   sendgridApiKey: process.env.SENDGRID_API_KEY ?? '',
   fromEmail: process.env.FROM_EMAIL ?? 'noreply@lightpay.ng',
 });

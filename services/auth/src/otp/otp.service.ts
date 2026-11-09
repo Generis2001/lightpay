@@ -88,9 +88,15 @@ export class OtpService {
   }
 
   private async sendEmail(email: string, code: string, purpose: string): Promise<void> {
-    const apiKey = this.config.get<string>('app.sendgridApiKey');
-    if (!apiKey) {
+    const provider = this.config.get<string>('app.emailProvider') ??
+      (this.config.get<string>('app.brevoApiKey') ? 'brevo' : 'sendgrid');
+    if (provider !== 'brevo' && provider !== 'sendgrid') {
       throw new ServiceUnavailableException('Email provider not configured');
+    }
+    const apiKey = this.config.get<string>(provider === 'brevo' ? 'app.brevoApiKey' : 'app.sendgridApiKey')?.trim();
+    const fromEmail = this.config.get<string>('app.fromEmail')?.trim();
+    if (!apiKey || !fromEmail) {
+      throw new ServiceUnavailableException('Email provider or sender not configured');
     }
 
     const subjects: Record<string, string> = {
@@ -100,27 +106,46 @@ export class OtpService {
       reset_pin: 'Reset your LightPay PIN',
     };
 
-    await fetch('https://api.sendgrid.com/v3/mail/send', {
-      method: 'POST',
-      signal: AbortSignal.timeout(15000),
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
+    const expirySeconds = this.config.get<number>('app.otpExpirySeconds') ?? 300;
+    const validity = expirySeconds % 60 === 0
+      ? `${expirySeconds / 60} ${expirySeconds === 60 ? 'minute' : 'minutes'}`
+      : `${expirySeconds} seconds`;
+    const text = `Your LightPay verification code is: ${code}\n\nThis code expires in ${validity}. Never share this code with anyone.`;
+    const subject = subjects[purpose] ?? 'Your LightPay code';
+    const headers: Record<string, string> = { 'Content-Type': 'application/json', Accept: 'application/json' };
+    headers[provider === 'brevo' ? 'api-key' : 'Authorization'] = provider === 'brevo' ? apiKey : `Bearer ${apiKey}`;
+    const body = provider === 'brevo' ? {
+      sender: { email: fromEmail, name: 'LightPay' },
+      to: [{ email }],
+      subject,
+      textContent: text,
+      tags: ['lightpay-otp'],
+    } : {
         personalizations: [{ to: [{ email }] }],
-        from: {
-          email: this.config.get('app.fromEmail'),
-          name: 'LightPay',
-        },
-        subject: subjects[purpose] ?? 'Your LightPay code',
-        content: [
-          {
-            type: 'text/plain',
-            value: `Your LightPay verification code is: ${code}\n\nThis code expires in 5 minutes. Never share this code with anyone.`,
-          },
-        ],
-      }),
-    });
+        from: { email: fromEmail, name: 'LightPay' },
+        subject,
+        content: [{ type: 'text/plain', value: text }],
+    };
+
+    try {
+      const response = await fetch(provider === 'brevo'
+        ? 'https://api.brevo.com/v3/smtp/email'
+        : 'https://api.sendgrid.com/v3/mail/send', {
+        method: 'POST',
+        signal: AbortSignal.timeout(15000),
+        headers,
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) throw new Error('Email delivery was rejected');
+      if (provider === 'brevo') {
+        const result = await response.json();
+        const messageIds = [result?.messageId, ...(Array.isArray(result?.messageIds) ? result.messageIds : [])];
+        if (!messageIds.some(id => typeof id === 'string' && id.trim())) {
+          throw new Error('Email delivery was not acknowledged');
+        }
+      }
+    } catch {
+      throw new ServiceUnavailableException('Unable to send your verification code. Please try again later.');
+    }
   }
 }
