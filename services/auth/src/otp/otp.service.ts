@@ -138,8 +138,13 @@ export class OtpService {
       });
       if (!response.ok) throw new Error('Email delivery was rejected');
       if (provider === 'brevo') {
-        const result = await response.json();
-        const messageIds = [result?.messageId, ...(Array.isArray(result?.messageIds) ? result.messageIds : [])];
+        const result: unknown = await response.json();
+        if (!result || typeof result !== 'object') {
+          throw new Error('Email delivery was not acknowledged');
+        }
+        const acknowledgement = result as { messageId?: unknown; messageIds?: unknown };
+        const messageIds = [acknowledgement.messageId,
+          ...(Array.isArray(acknowledgement.messageIds) ? acknowledgement.messageIds : [])];
         if (!messageIds.some(id => typeof id === 'string' && id.trim())) {
           throw new Error('Email delivery was not acknowledged');
         }

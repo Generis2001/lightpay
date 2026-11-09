@@ -101,6 +101,8 @@ test('email provider rejection, quota exhaustion and missing acknowledgement inv
     { name: 'daily quota', status: 429, body: { message: 'quota exhausted' } },
     { name: 'provider unavailable', status: 503, body: { message: 'unavailable' } },
     { name: 'missing acknowledgement', status: 201, body: {} },
+    { name: 'null acknowledgement', status: 201, body: null },
+    { name: 'invalid message identifiers', status: 201, body: { messageId: 42, messageIds: [null, 42, ' '] } },
   ]) {
     await t.test(failure.name, async () => {
       const database = store();
