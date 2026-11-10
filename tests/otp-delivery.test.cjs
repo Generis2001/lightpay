@@ -43,7 +43,7 @@ function config(values = {}) {
   };
 }
 
-async function providerFixture(handler, run) {
+async function providerFixture(handler, run, expectedTarget) {
   const app = express();
   app.use(express.json());
   app.post('/v3/smtp/email', handler);
@@ -55,7 +55,8 @@ async function providerFixture(handler, run) {
   const originalFetch = global.fetch;
   const url = `http://127.0.0.1:${server.address().port}`;
   global.fetch = (target, options) => {
-    assert.ok(['https://api.brevo.com/v3/smtp/email', 'https://api.sendgrid.com/v3/mail/send', 'https://api.ng.termii.com/api/sms/send'].includes(target));
+    assert.ok(['https://api.brevo.com/v3/smtp/email', 'https://api.sendgrid.com/v3/mail/send', 'https://v4.api.termii.com/api/sms/send', 'https://api.ng.termii.com/api/sms/send'].includes(target));
+    if (expectedTarget) assert.equal(target, expectedTarget);
     assert.equal(options.method, 'POST');
     assert.ok(options.signal instanceof AbortSignal);
     return originalFetch(`${url}${new URL(target).pathname}`, options);
@@ -206,7 +207,35 @@ test('Termii SMS uses the configured sender and only accepts acknowledged sends'
     await service.sendOtp(request);
     await service.verifyOtp({ ...request, code });
     await assert.rejects(service.verifyOtp({ ...request, code }), /already used/);
-  });
+  }, 'https://v4.api.termii.com/api/sms/send');
+});
+
+test('Termii uses the account base URL with or without a trailing slash', async t => {
+  for (const baseUrl of ['https://v4.api.termii.com/', 'https://api.ng.termii.com']) {
+    await t.test(baseUrl, async () => {
+      const database = store();
+      const service = new OtpService(config({ 'app.termiiApiKey': 'isolated-termii-fixture-key', 'app.termiiBaseUrl': baseUrl }), database.repo);
+      await providerFixture((_req, res) => res.json({ code: 'ok', message_id: 'isolated-sms-message' }), async () => {
+        await service.sendOtp({ identifier: '+2348012345678', method: 'phone', purpose: 'registration' });
+        assert.ok(database.state.challenge);
+      }, baseUrl.replace(/\/$/, '') + '/api/sms/send');
+    });
+  }
+});
+
+test('an invalid or insecure Termii URL never receives credentials or leaves a usable OTP', async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => { assert.fail('Invalid provider URL must fail before fetch'); };
+  try {
+    for (const baseUrl of ['http://v4.api.termii.com', 'not-a-url', 'https://user:password@v4.api.termii.com']) {
+      const database = store();
+      const service = new OtpService(config({ 'app.termiiApiKey': 'isolated-termii-fixture-key', 'app.termiiBaseUrl': baseUrl }), database.repo);
+      await assert.rejects(service.sendOtp({ identifier: '+2348012345678', method: 'phone', purpose: 'registration' }), /use email/);
+      assert.equal(database.state.challenge, null);
+    }
+  } finally {
+    global.fetch = originalFetch;
+  }
 });
 
 test('SMS rejection and missing acknowledgement remove the issued code', async t => {

@@ -71,7 +71,11 @@ export class OtpService {
     }
 
     try {
-      const response = await fetch('https://api.ng.termii.com/api/sms/send', {
+      const baseUrl = new URL(this.config.get<string>('app.termiiBaseUrl')?.trim() || 'https://v4.api.termii.com');
+      if (baseUrl.protocol !== 'https:' || baseUrl.username || baseUrl.password) {
+        throw new Error('Invalid SMS provider URL');
+      }
+      const response = await fetch(new URL('/api/sms/send', baseUrl).toString(), {
         method: 'POST',
         signal: AbortSignal.timeout(15000),
         headers: { 'Content-Type': 'application/json' },
