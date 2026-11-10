@@ -22,10 +22,12 @@ interface VerifyOtpParams {
 export class OtpService {
   constructor(private readonly config: ConfigService, @InjectRepository(OtpChallenge) private readonly challenges: Repository<OtpChallenge>) {}
 
-  private key(params: SendOtpParams) { return crypto.createHash('sha256').update(`${params.method}:${params.identifier}:${params.purpose}`).digest('hex'); }
+  private identifier(params: SendOtpParams) { return params.method === 'email' ? params.identifier.trim().toLowerCase() : params.identifier; }
+  private key(params: SendOtpParams) { return crypto.createHash('sha256').update(`${params.method}:${this.identifier(params)}:${params.purpose}`).digest('hex'); }
   private codeHash(key: string, code: string) { return crypto.createHmac('sha256', this.config.getOrThrow<string>('app.jwtSecret')).update(`${key}:${code}`).digest('hex'); }
 
   async sendOtp(params: SendOtpParams): Promise<void> {
+    params = { ...params, identifier: this.identifier(params) };
     const code = this.generateCode(); const key = this.key(params);
     const expirySeconds = this.config.get<number>('app.otpExpirySeconds') ?? 300;
     const challenge = this.challenges.create({ key, codeHash: this.codeHash(key, code), expiresAt: new Date(Date.now() + expirySeconds * 1000), attempts: 0, usedAt: null });

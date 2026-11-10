@@ -162,6 +162,23 @@ test("registration supplies usable access and refresh tokens before PIN setup", 
   assert.equal(payloads[0].sub, "user-1");
 });
 
+test('registration and login use the same normalized email for OTPs, user creation and lookup', async () => {
+  const observed = [];
+  const user = { id: 'email-case-user', isActive: true, isBlocked: false };
+  const service = new AuthService(
+    { findOne: async ({ where }) => { observed.push(['lookup', where.email]); return user; }, save: async value => value },
+    {}, {}, {},
+    { sendOtp: async value => observed.push(['send', value.identifier]), verifyOtp: async value => observed.push(['verify', value.identifier]) },
+    {}, { create: async () => ({ accessToken: 'case-test-access', refreshToken: 'case-test-refresh' }) },
+  );
+  service.createUser = async identifier => { observed.push(['create', identifier]); return user; };
+  await service.verifyOtp({ identifier: ' User+TEST@Example.Invalid ', method: 'email', purpose: 'registration', code: '123456' }, '127.0.0.1');
+  await service.requestLoginOtp({ identifier: 'USER+test@EXAMPLE.INVALID', method: 'email' }, '127.0.0.1');
+  await service.verifyOtp({ identifier: 'USER+TEST@example.invalid', method: 'email', purpose: 'login', code: '123456' }, '127.0.0.1');
+  assert.ok(observed.length >= 6);
+  for (const [, identifier] of observed) assert.equal(identifier, 'user+test@example.invalid');
+});
+
 test("an existing transaction PIN cannot be replaced through initial PIN setup", async () => {
   const service = new AuthService(
     {},

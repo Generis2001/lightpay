@@ -64,6 +64,7 @@ export class AuthService {
   }
 
   async registerEmail(dto: RegisterEmailDto, ip: string): Promise<ApiResponse> {
+    dto = { ...dto, email: dto.email.trim().toLowerCase() };
     const existing = await this.userRepo.findOne({ where: { email: dto.email } });
     if (existing) {
       throw new ConflictException({
@@ -85,6 +86,7 @@ export class AuthService {
   }
 
   async requestLoginOtp(dto: LoginRequestDto, ip: string): Promise<ApiResponse> {
+    if (dto.method === 'email') dto = { ...dto, identifier: dto.identifier.trim().toLowerCase() };
     let user: User | null = null;
     if (dto.method === 'phone') {
       user = await this.userRepo.findOne({ where: { phone: dto.identifier } });
@@ -115,6 +117,7 @@ export class AuthService {
     deviceId?: string,
     userAgent?: string,
   ): Promise<ApiResponse> {
+    if (dto.method === 'email') dto = { ...dto, identifier: dto.identifier.trim().toLowerCase() };
     if (deviceId && deviceId.length > 255) throw new BadRequestException("Invalid device identifier");
     await this.otpService.verifyOtp({
       identifier: dto.identifier,
@@ -170,6 +173,7 @@ export class AuthService {
   }
 
   async resendOtp(dto: ResendOtpDto): Promise<ApiResponse> {
+    if (dto.method === 'email') dto = { ...dto, identifier: dto.identifier.trim().toLowerCase() };
     await this.otpService.sendOtp({
       identifier: dto.identifier,
       method: dto.method as 'phone' | 'email',

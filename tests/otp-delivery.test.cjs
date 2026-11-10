@@ -95,6 +95,22 @@ test('Brevo email OTP follows the API contract and produces a persisted single-u
   });
 });
 
+test('email OTP delivery and verification share one identity regardless of email case or surrounding spaces', async () => {
+  const database = store();
+  const service = new OtpService(config({ 'app.brevoApiKey': 'isolated-brevo-fixture-key' }), database.repo);
+  let code;
+  await providerFixture((req, res) => {
+    assert.deepEqual(req.body.to, [{ email: 'recipient+live-test@example.invalid' }]);
+    code = req.body.textContent.match(/verification code is: (\d{6})/)[1];
+    res.status(201).json({ messageId: '<case-regression@example.invalid>' });
+  }, async () => {
+    await service.sendOtp({ identifier: ' Recipient+LIVE-Test@Example.Invalid ', method: 'email', purpose: 'registration' });
+    await service.verifyOtp({ identifier: 'RECIPIENT+live-test@example.INVALID', method: 'email', purpose: 'registration', code });
+    assert.ok(database.state.challenge.usedAt instanceof Date);
+    await assert.rejects(service.verifyOtp({ identifier: 'recipient+live-test@example.invalid', method: 'email', purpose: 'registration', code }), /already used/);
+  });
+});
+
 test('email provider rejection, quota exhaustion and missing acknowledgement invalidate the issued challenge', async t => {
   for (const failure of [
     { name: 'invalid credentials', status: 401, body: { message: 'private provider details' } },
