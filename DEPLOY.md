@@ -1,6 +1,6 @@
 # LightPay deployment and provider setup
 
-Updated 10 November 2026. The free Render backend is deployed at https://lightpay-backend-yfva.onrender.com. Its public `/api/v1/health` returned HTTP 200 with `{"status":"ready"}`, confirming both auth and fiat can query PostgreSQL. Brevo's private REST key and verified sender are configured on Render. Commit `8f862c0` fixed case normalization across email registration, verification and login; Render deployment `dep-dbp60sdg1s2s73c1ce3g` succeeded. Real email receipt, account creation, PIN setup, logout, fresh sign-in, authenticated profile and NGN-wallet access passed. See `output/live-auth-verification.json`. Financial-provider payments and installed-device behavior remain unverified. Mobile version 1.1.0 adds device crypto wallets and the lightning-L logo/splash.
+Updated 10 November 2026. The free Render backend is deployed at https://lightpay-backend-yfva.onrender.com. Render confirms cumulative release commit `f75f587` is live as deployment `dep-dbp8esqvcj2c73cseh7g`, including the earlier email case-normalization fix `8f862c0` and the retirement of server custody. Its public `/api/v1/health` returned HTTP 200 with `{"status":"ready"}`, confirming both auth and fiat can query PostgreSQL. Brevo's private REST key and verified sender are configured on Render. Real email receipt, account creation, PIN setup, logout, fresh sign-in, authenticated profile and NGN-wallet access passed; see `output/live-auth-verification.json`. APK v8, version 1.1.0, includes device crypto wallets and the lightning-L launcher/splash and passed artifact verification. Financial-provider payments and installed-device behavior remain unverified.
 
 ## PostgreSQL URL
 
@@ -210,10 +210,12 @@ cd apps/mobile
 eas build --platform android --profile production-apk --non-interactive
 ```
 
-`production-apk` embeds `EXPO_PUBLIC_API_URL=https://lightpay-backend-yfva.onrender.com/api/v1` and increments the Android version code. Mobile version 1.1.0 includes the lightning-L launcher/splash assets, wallet creation/import and the native encoding setup. It uses Expo SDK 54 / React Native 0.81 and targets Android 16 (API 36), retaining compressed native-library extraction. API requests allow 90 seconds for the free backend to wake up. Version code 6 had 4 KB ARM64 ELF alignment and failed to install on the reported Redmi Note 14 Pro / Android 16; the precise device-specific cause was not confirmed. The previous v7 artifact passed signature and 16 KB alignment checks.
+`production-apk` embeds `EXPO_PUBLIC_API_URL=https://lightpay-backend-yfva.onrender.com/api/v1` and increments the Android version code. APK v8 is version 1.1.0 with Android version code 8, built from commit `f75f587` by EAS build `1e31055c-a70f-4d1a-b994-772b61cc3704`. It includes the lightning-L launcher/splash assets, wallet creation/import and the native encoding setup. It uses Expo SDK 54 / React Native 0.81 and targets Android 16 (API 36), retaining compressed native-library extraction. Its ZIP, v2 signature, signed content digests, API URL, launcher/adaptive/splash references and 64-bit 16 KB ELF alignment passed verification. The signing certificate matches v7. See `output/lightpay-v8-verification.json` and `output/lightpay-v8.sha256`. API requests allow 90 seconds for the free backend to wake up. Version code 6 had 4 KB ARM64 ELF alignment and failed to install on the reported Redmi Note 14 Pro / Android 16; the precise device-specific cause was not confirmed.
 
 Use the current APK linked in [artifact notes](output/README.md), then check cold
 launch/logo, email sign-in, PIN, back navigation, wallet backup/import/password,
 camera/KYC/QR, biometrics, sharing, push and connectivity. Installation on the
 reported device remains untested. Browser UI checks, fixture signing and Hermes
 export do not replace installed-device or funded/provider-account validation.
+
+Live release checks also confirmed session refresh, authenticated profile and NGN-wallet access (HTTP 200), a disabled custody manifest, and legacy custody provisioning/quotes returning HTTP 410. `output/backend-deployment-verification.json` records these results without credentials; no financial transaction was executed.

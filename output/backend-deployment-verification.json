@@ -1,0 +1,32 @@
+{
+  "testedAt": "2026-11-10T09:43:36.527Z",
+  "backendCommit": "f75f5872a0385a7d16954d3bcd65931e0beeb7ba",
+  "branch": "deploy/lightpay-backend",
+  "deploymentId": "dep-dbp8esqvcj2c73cseh7g",
+  "renderDashboardVerifiedAt": "2026-11-10T08:25:33.165Z",
+  "health": {
+    "httpStatus": 200,
+    "body": {
+      "status": "ready"
+    }
+  },
+  "checks": {
+    "authenticatedProfile": true,
+    "nairaWalletAccess": true,
+    "custodyManifestDisabled": true,
+    "legacyProvisionGone": true,
+    "legacyQuoteGone": true
+  },
+  "statuses": {
+    "profile": 200,
+    "wallets": 200,
+    "assets": 200,
+    "provision": 410,
+    "quote": 410,
+    "refresh": 200
+  },
+  "completed": true,
+  "financialTransactionsExecuted": false,
+  "nativeDeviceTested": false,
+  "transport": "Authenticated live Render requests from the existing owned test session"
+}

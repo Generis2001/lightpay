@@ -8,6 +8,8 @@ LightPay also creates and imports cryptocurrency wallets on the device for Bitco
 
 **Documentation date:** 10 November 2026. **Mobile app version:** 1.1.0. This README describes the current source and checked-in deployment documentation.
 
+[Download Android APK v8](https://expo.dev/artifacts/eas/MoBdvsHM4-DKKJjvzFepOwxGz-mCMrNV-SzXXZXRsBM.apk), version 1.1.0 with Android version code 8. It includes device crypto wallets and the lightning-L launcher/splash. Signature, bundled API URL, native artwork references and 16 KB library alignment passed artifact checks; installation on the reported Android 16 device remains untested. See [release evidence](output/README.md).
+
 ## Main features
 
 | Area | What the project implements |
@@ -204,7 +206,7 @@ See `.env.example` for the complete template, including optional public blockcha
 
 Naira wallet, banking, bills, session security, transaction tracking, notifications and device crypto wallets are implemented in source. Live Brevo email registration and sign-in passed on 10 November 2026, including authenticated profile and NGN-wallet access. Connected-provider payments and identity decisions remain unverified. An API health check confirms database readiness; payment availability needs separate provider checks.
 
-The main remaining work is banking/identity-provider activation and testing, installed-device validation, funded on-chain transfer checks, and operational monitoring and recovery. The new lightning-L branding is included in the source and native splash configuration. The latest mobile source targets Android API 36; APK compatibility still needs confirmation on the reported Android 16 device.
+The main remaining work is banking/identity-provider activation and testing, installed-device validation, funded on-chain transfer checks, and operational monitoring and recovery. APK v8 includes the lightning-L launcher/splash, targets Android API 36 and passes signed-artifact and native-library alignment checks. Runtime compatibility still needs confirmation on the reported Android 16 device.
 
 Prepared Flutterwave corridors cover candidate outgoing payouts to Nigeria, Ghana, Kenya, Uganda, Tanzania, Rwanda, South Africa, and Zambia, subject to account approval. Incoming receiving accounts currently cover Nigerian NGN through Paystack. Crypto wallets support the first standard Ethereum/BNB and Solana accounts and Bitcoin BIP84 account 0. Bitcoin restoration scans receiving/change branches with a gap of 20 and a limit of 200 addresses per branch; other account types and token assets are not supported.
 

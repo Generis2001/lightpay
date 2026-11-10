@@ -1,0 +1,53 @@
+{
+  "version": "1.1.0",
+  "androidVersionCode": 8,
+  "package": "com.lightpay.app",
+  "easBuildId": "1e31055c-a70f-4d1a-b994-772b61cc3704",
+  "buildFinishedAt": "2026-11-10T03:14:01.793Z",
+  "sourceCommit": "f75f5872a0385a7d16954d3bcd65931e0beeb7ba",
+  "artifactUrl": "https://expo.dev/artifacts/eas/MoBdvsHM4-DKKJjvzFepOwxGz-mCMrNV-SzXXZXRsBM.apk",
+  "sha256": "8e1c391ffd79153046b40492b8a6a6a3f756290d1ce1cedd482b08a761e46cf6",
+  "bytes": 66310011,
+  "verifiedAt": "2026-11-10T09:26:35.320Z",
+  "backend": {
+    "url": "https://lightpay-backend-yfva.onrender.com/api/v1",
+    "branch": "deploy/lightpay-backend",
+    "releaseCommit": "f75f5872a0385a7d16954d3bcd65931e0beeb7ba",
+    "releaseDeploymentId": "dep-dbp8esqvcj2c73cseh7g",
+    "health": {
+      "httpStatus": 200,
+      "body": {
+        "status": "ready"
+      }
+    },
+    "authenticatedChecks": {
+      "authenticatedProfile": true,
+      "nairaWalletAccess": true,
+      "custodyManifestDisabled": true,
+      "legacyProvisionGone": true,
+      "legacyQuoteGone": true
+    }
+  },
+  "evidence": {
+    "apk": "lightpay-v8-verification.json",
+    "checksum": "lightpay-v8.sha256",
+    "emailAuthentication": "live-auth-verification.json",
+    "browserWallets": "wallet-ui-verification.json",
+    "backendDeployment": "backend-deployment-verification.json"
+  },
+  "sourceValidation": {
+    "workspaceTypeChecks": "passed",
+    "backendProductionBuilds": "passed",
+    "mobileLint": "zero errors; existing warnings",
+    "androidHermesExport": "passed",
+    "integrationTests": {
+      "total": 56,
+      "passed": 43,
+      "skippedIsolatedDatabaseCases": 13,
+      "failed": 0
+    },
+    "walletChecksPassed": 12
+  },
+  "nativeDeviceTested": false,
+  "financialTransactionsExecuted": false
+}

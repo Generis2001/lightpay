@@ -1,0 +1,94 @@
+{
+  "file": "lightpay-v8.apk",
+  "bytes": 66310011,
+  "sha256": "8e1c391ffd79153046b40492b8a6a6a3f756290d1ce1cedd482b08a761e46cf6",
+  "zip_integrity": "passed",
+  "package": "com.lightpay.app",
+  "version": "1.1.0",
+  "version_code": 8,
+  "min_sdk": 24,
+  "target_sdk": 36,
+  "extract_native_libraries": true,
+  "debuggable": false,
+  "signature": {
+    "scheme": "v2",
+    "verified": true,
+    "content_digests_verified": true,
+    "algorithms": [
+      "0x103"
+    ],
+    "certificate_sha256": [
+      "acd8f971729aaa7054e4e96e8256babac676ea96445a9b61add18f2cd3bf5c74"
+    ]
+  },
+  "same_signing_certificate_as_v7": true,
+  "native_libraries": {
+    "arm64-v8a": {
+      "libraries": 26,
+      "compressed": 26,
+      "minimum_load_alignment": 16384
+    },
+    "armeabi-v7a": {
+      "libraries": 26,
+      "compressed": 26,
+      "minimum_load_alignment": 4096
+    },
+    "x86": {
+      "libraries": 26,
+      "compressed": 26,
+      "minimum_load_alignment": 4096
+    },
+    "x86_64": {
+      "libraries": 26,
+      "compressed": 26,
+      "minimum_load_alignment": 16384
+    }
+  },
+  "native_64bit_alignment_below_16kb": [],
+  "uncompressed_64bit_zip_alignment_failures": [],
+  "deployed_api_url_found_in_bundle": true,
+  "installed_device_validation": "not performed",
+  "verified_at": "2026-11-10T09:26:35.320Z",
+  "eas_build_id": "1e31055c-a70f-4d1a-b994-772b61cc3704",
+  "source_commit": "f75f5872a0385a7d16954d3bcd65931e0beeb7ba",
+  "native_branding": {
+    "launcher_reference_verified": true,
+    "round_launcher_reference_verified": true,
+    "adaptive_foreground_reference_verified": true,
+    "main_activity_splash_theme_verified": true,
+    "splash_icon_reference_verified": true,
+    "splash_background": "#0A0A0F",
+    "bitmap_shape_checks": [
+      {
+        "resource": "mipmap/ic_launcher",
+        "file": "res/sK.webp",
+        "size": [
+          192,
+          192
+        ],
+        "source_shape_overlap": 0.9464,
+        "extracted_artifact": "lightpay-v8-native-icon.png"
+      },
+      {
+        "resource": "mipmap/ic_launcher_foreground",
+        "file": "res/5c.webp",
+        "size": [
+          432,
+          432
+        ],
+        "source_shape_overlap": 0.977,
+        "extracted_artifact": null
+      },
+      {
+        "resource": "drawable/splashscreen_logo",
+        "file": "res/S7.png",
+        "size": [
+          1152,
+          1152
+        ],
+        "source_shape_overlap": 0.9919,
+        "extracted_artifact": "lightpay-v8-native-splash-logo.png"
+      }
+    ]
+  }
+}
