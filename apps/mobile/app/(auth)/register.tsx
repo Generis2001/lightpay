@@ -24,17 +24,23 @@ import { api, getErrorMessage } from '@/lib/api';
 
 type AuthMethod = 'phone' | 'email';
 
+const referralCodeSchema = z.string().trim().refine(
+  code => !code || (code.length >= 6 && code.length <= 10),
+  'Referral code must be 6 to 10 characters',
+).optional();
+
 const phoneSchema = z.object({
   phone: z
     .string()
+    .trim()
     .min(1, 'Phone number is required')
     .regex(/^(\+234|0)[789][01]\d{8}$/, 'Enter a valid Nigerian phone number'),
-  referralCode: z.string().optional(),
+  referralCode: referralCodeSchema,
 });
 
 const emailSchema = z.object({
-  email: z.string().min(1, 'Email is required').email('Enter a valid email address'),
-  referralCode: z.string().optional(),
+  email: z.string().trim().min(1, 'Email is required').email('Enter a valid email address'),
+  referralCode: referralCodeSchema,
 });
 
 type PhoneForm = z.infer<typeof phoneSchema>;
@@ -62,7 +68,10 @@ export default function RegisterScreen() {
       if (phone.startsWith('0')) {
         phone = `+234${phone.slice(1)}`;
       }
-      await api.post('/auth/register/phone', { phone, referralCode: data.referralCode });
+      await api.post('/auth/register/phone', {
+        phone,
+        ...(data.referralCode ? { referralCode: data.referralCode } : {}),
+      });
       setPendingPhone(phone);
       setPendingEmail(null);
       setAuthMethod('phone');
@@ -79,7 +88,7 @@ export default function RegisterScreen() {
     try {
       await api.post('/auth/register/email', {
         email: data.email.trim().toLowerCase(),
-        referralCode: data.referralCode,
+        ...(data.referralCode ? { referralCode: data.referralCode } : {}),
       });
       setPendingEmail(data.email.trim().toLowerCase());
       setPendingPhone(null);
@@ -213,6 +222,12 @@ export default function RegisterScreen() {
                 style={styles.submitButton}
               />
             </View>
+          )}
+
+          {loading && (
+            <Text accessibilityLiveRegion="polite" style={styles.terms}>
+              Sending your code. Connecting may take up to 90 seconds. Please keep this screen open.
+            </Text>
           )}
 
           <Text style={styles.terms}>

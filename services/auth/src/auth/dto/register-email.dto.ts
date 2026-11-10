@@ -9,6 +9,7 @@ export class RegisterEmailDto {
   email!: string;
 
   @ApiPropertyOptional()
+  @Transform(({ value }: { value: unknown }) => typeof value === 'string' ? value.trim() || undefined : value)
   @IsOptional()
   @IsString()
   @Length(6, 10)

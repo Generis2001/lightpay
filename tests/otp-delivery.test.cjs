@@ -48,13 +48,14 @@ async function providerFixture(handler, run) {
   app.use(express.json());
   app.post('/v3/smtp/email', handler);
   app.post('/v3/mail/send', handler);
+  app.post('/api/sms/send', handler);
   const server = await new Promise(resolve => {
     const listener = app.listen(0, '127.0.0.1', () => resolve(listener));
   });
   const originalFetch = global.fetch;
   const url = `http://127.0.0.1:${server.address().port}`;
   global.fetch = (target, options) => {
-    assert.ok(['https://api.brevo.com/v3/smtp/email', 'https://api.sendgrid.com/v3/mail/send'].includes(target));
+    assert.ok(['https://api.brevo.com/v3/smtp/email', 'https://api.sendgrid.com/v3/mail/send', 'https://api.ng.termii.com/api/sms/send'].includes(target));
     assert.equal(options.method, 'POST');
     assert.ok(options.signal instanceof AbortSignal);
     return originalFetch(`${url}${new URL(target).pathname}`, options);
@@ -186,4 +187,68 @@ test('existing SendGrid configuration still accepts HTTP 202 and rejects deliver
     await assert.rejects(service.sendOtp(request), /Unable to send your verification code/);
     assert.equal(database.state.challenge, null);
   });
+});
+
+test('Termii SMS uses the configured sender and only accepts acknowledged sends', async () => {
+  const database = store();
+  const service = new OtpService(config({ 'app.termiiApiKey': 'isolated-termii-fixture-key', 'app.termiiSenderId': 'Approved' }), database.repo);
+  let code;
+  await providerFixture((req, res) => {
+    assert.equal(req.path, '/api/sms/send');
+    assert.equal(req.body.to, '2348012345678');
+    assert.equal(req.body.from, 'Approved');
+    assert.equal(req.body.channel, 'dnd');
+    assert.equal(req.body.api_key, 'isolated-termii-fixture-key');
+    code = req.body.sms.match(/verification code is: (\d{6})/)[1];
+    res.json({ code: 'ok', message_id: 'isolated-sms-message', message: 'Successfully Sent' });
+  }, async () => {
+    const request = { identifier: '+2348012345678', method: 'phone', purpose: 'registration' };
+    await service.sendOtp(request);
+    await service.verifyOtp({ ...request, code });
+    await assert.rejects(service.verifyOtp({ ...request, code }), /already used/);
+  });
+});
+
+test('SMS rejection and missing acknowledgement remove the issued code', async t => {
+  for (const failure of [
+    { name: 'invalid credentials', status: 401, body: { message: 'private provider details' } },
+    { name: 'quota exhaustion', status: 429, body: {} },
+    { name: 'missing acknowledgement', status: 200, body: {} },
+    { name: 'null acknowledgement', status: 200, body: null },
+    { name: 'application rejection', status: 200, body: { code: 'failed', message_id: 'failed-message' } },
+  ]) {
+    await t.test(failure.name, async () => {
+      const database = store();
+      const service = new OtpService(config({ 'app.termiiApiKey': 'isolated-termii-fixture-key' }), database.repo);
+      await providerFixture((_req, res) => res.status(failure.status).json(failure.body), async () => {
+        await assert.rejects(service.sendOtp({ identifier: '+2348012345678', method: 'phone', purpose: 'registration' }), error => {
+          assert.equal(error.getStatus(), 503);
+          assert.match(error.message, /use email/);
+          assert.doesNotMatch(error.message, /private provider details/);
+          return true;
+        });
+        assert.equal(database.state.challenge, null);
+      });
+    });
+  }
+});
+
+test('SMS network failure or timeout invalidates the challenge', async () => {
+  const database = store();
+  const service = new OtpService(config({ 'app.termiiApiKey': 'isolated-termii-fixture-key' }), database.repo);
+  const originalFetch = global.fetch;
+  global.fetch = async () => { throw new DOMException('Fixture timeout', 'TimeoutError'); };
+  try {
+    await assert.rejects(service.sendOtp({ identifier: '+2348012345678', method: 'phone', purpose: 'registration' }), /use email/);
+    assert.equal(database.state.challenge, null);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('missing SMS credentials give an email fallback and leave no usable code', async () => {
+  const database = store();
+  const service = new OtpService(config(), database.repo);
+  await assert.rejects(service.sendOtp({ identifier: '+2348012345678', method: 'phone', purpose: 'registration' }), /Phone verification is currently unavailable. Please use email/);
+  assert.equal(database.state.challenge, null);
 });

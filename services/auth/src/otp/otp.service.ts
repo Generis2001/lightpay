@@ -65,27 +65,35 @@ export class OtpService {
   }
 
   private async sendSms(phone: string, code: string): Promise<void> {
-    const apiKey = this.config.get<string>('app.termiiApiKey');
+    const apiKey = this.config.get<string>('app.termiiApiKey')?.trim();
     if (!apiKey) {
-      throw new ServiceUnavailableException('SMS provider not configured');
+      throw new ServiceUnavailableException('Phone verification is currently unavailable. Please use email to continue.');
     }
 
-    const response = await fetch('https://api.ng.termii.com/api/sms/send', {
-      method: 'POST',
-      signal: AbortSignal.timeout(15000),
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        to: phone,
-        from: 'LightPay',
-        sms: `Your LightPay verification code is: ${code}. Valid for 5 minutes. Never share this code.`,
-        type: 'plain',
-        channel: 'dnd',
-        api_key: apiKey,
-      }),
-    });
-
-    if (!response.ok) {
-      console.error('[OTP] SMS send failed', await response.text());
+    try {
+      const response = await fetch('https://api.ng.termii.com/api/sms/send', {
+        method: 'POST',
+        signal: AbortSignal.timeout(15000),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: phone.replace(/^\+/, ''),
+          from: this.config.get<string>('app.termiiSenderId')?.trim() || 'LightPay',
+          sms: `Your LightPay verification code is: ${code}. Valid for 5 minutes. Never share this code.`,
+          type: 'plain',
+          channel: 'dnd',
+          api_key: apiKey,
+        }),
+      });
+      if (!response.ok) throw new Error('SMS delivery was rejected');
+      const result: unknown = await response.json();
+      if (!result || typeof result !== 'object') throw new Error('SMS delivery was not acknowledged');
+      const acknowledgement = result as { message_id?: unknown; code?: unknown };
+      if (typeof acknowledgement.message_id !== 'string' || !acknowledgement.message_id.trim() ||
+          (acknowledgement.code !== undefined && acknowledgement.code !== 'ok')) {
+        throw new Error('SMS delivery was not acknowledged');
+      }
+    } catch {
+      throw new ServiceUnavailableException('Unable to send your SMS verification code. Please try again or use email.');
     }
   }
 

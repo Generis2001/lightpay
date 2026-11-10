@@ -110,12 +110,19 @@ api.interceptors.response.use(
 
 export const getErrorMessage = (error: unknown): string => {
   if (axios.isAxiosError(error)) {
-    return (
+    if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+      return 'The connection took too long. Please try again.';
+    }
+    if (!error.response && error.code === 'ERR_NETWORK') {
+      return 'Unable to connect. Check your internet connection and try again.';
+    }
+    const message = (
       error.response?.data?.error?.message ??
       error.response?.data?.message ??
       error.message ??
       'Something went wrong'
     );
+    return Array.isArray(message) ? message.join('\n') : message;
   }
   if (error instanceof Error) return error.message;
   return 'Something went wrong';
