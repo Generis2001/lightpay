@@ -12,7 +12,6 @@ export default function ModalsLayout() {
       <Stack.Screen name="transaction-detail" options={{ animation: 'slide_from_bottom' }} />
       <Stack.Screen name="notifications" options={{ animation: 'slide_from_bottom' }} />
       <Stack.Screen name="confirm-transfer" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="enter-pin" options={{ animation: 'slide_from_bottom', presentation: 'transparentModal' }} />
       <Stack.Screen name="transfer-success" options={{ animation: 'fade', gestureEnabled: false }} />
     </Stack>
   );

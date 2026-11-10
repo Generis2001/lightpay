@@ -29,7 +29,7 @@ export default function ConfirmPinScreen() {
     try {
       const { data } = await api.post('/auth/pin/set', { pin: value });
       setTokens(data.data.tokens.accessToken, data.data.tokens.refreshToken);
-      setUser(data.data.user);
+      useAuthStore.getState().updateUser(data.data.user);
       setPinSet(true);
       router.push('/(auth)/setup-biometric');
     } catch (error) {

@@ -1,0 +1,17 @@
+{
+  "testedAt": "2026-11-10T00:46:24.456Z",
+  "backendCommit": "8f862c0",
+  "deploymentId": "dep-dbp60sdg1s2s73c1ce3g",
+  "checks": {
+    "registration": true,
+    "realEmailDelivery": true,
+    "pinSetup": true,
+    "logout": true,
+    "signin": true,
+    "profileAccess": true,
+    "nairaWalletAccess": true
+  },
+  "account": "Separate owned Gmail test alias",
+  "financialTransactionsExecuted": false,
+  "nativeDeviceTested": false
+}

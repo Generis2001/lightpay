@@ -69,6 +69,12 @@ export default function LoginScreen() {
       });
 
       if (result.success) {
+        const refreshToken = useAuthStore.getState().refreshToken;
+        if (!refreshToken) throw new Error('Please sign in with a verification code.');
+        const { data } = await api.post('/auth/refresh', { refreshToken });
+        useAuthStore.getState().setTokens(data.data.tokens.accessToken, data.data.tokens.refreshToken);
+        const profile = await api.get('/auth/me');
+        useAuthStore.getState().setUser(profile.data.data);
         router.replace('/(tabs)/home');
       } else if (result.error === 'user_cancel') {
         // User chose PIN
@@ -218,7 +224,7 @@ export default function LoginScreen() {
           )}
 
           <View style={styles.signupRow}>
-            <Text style={styles.signupText}>Don't have an account? </Text>
+            <Text style={styles.signupText}>{"Don't have an account? "}</Text>
             <TouchableOpacity onPress={() => router.replace('/(auth)/register')}>
               <Text style={styles.signupLink}>Create one</Text>
             </TouchableOpacity>

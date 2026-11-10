@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '@/lib/haptics';
 import { X, Flashlight, QrCode } from 'phosphor-react-native';
 import { Colors } from '../../constants/colors';
 
@@ -25,17 +25,18 @@ export default function QrScanScreen() {
     try {
       const payload = JSON.parse(data);
 
-      if (payload.type === 'lightpay_receive') {
+      if (payload.type === 'lightpay_receive' && /^\d{10}$/.test(payload.accountNumber) && typeof payload.bankCode === 'string' && payload.bankCode) {
         // Internal LightPay QR — pre-fill send money
         router.replace({
           pathname: '/(modals)/send-money',
           params: {
             prefillAccount: payload.accountNumber,
+            prefillBankCode: payload.bankCode,
             prefillName: payload.name,
             prefillAmount: payload.amount,
           },
         } as any);
-      } else if (payload.accountNumber && payload.bankCode) {
+      } else if (/^\d{10}$/.test(payload.accountNumber) && typeof payload.bankCode === 'string' && payload.bankCode) {
         // Generic bank QR
         router.replace({
           pathname: '/(modals)/send-money',
@@ -71,7 +72,7 @@ export default function QrScanScreen() {
     return (
       <View className="flex-1 bg-[#0A0A0F] items-center justify-center px-8">
         <QrCode size={64} color="rgba(255,255,255,0.3)" />
-        <Text className="text-white text-lg font-['Inter_SemiBold'] mt-6 text-center">
+        <Text className="text-white text-lg font-['Inter-SemiBold'] mt-6 text-center">
           Camera Access Required
         </Text>
         <Text className="text-white/50 text-sm font-['Inter'] text-center mt-2 mb-6">
@@ -81,7 +82,7 @@ export default function QrScanScreen() {
           onPress={requestPermission}
           className="bg-[#00C853] rounded-2xl px-8 py-3"
         >
-          <Text className="text-black font-['Inter_SemiBold']">Grant Permission</Text>
+          <Text className="text-black font-['Inter-SemiBold']">Grant Permission</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => router.back()} className="mt-4">
           <Text className="text-white/50 font-['Inter']">Cancel</Text>
@@ -108,7 +109,7 @@ export default function QrScanScreen() {
         >
           <X size={22} color="white" />
         </TouchableOpacity>
-        <Text className="text-white text-base font-['Inter_SemiBold']">Scan to Pay</Text>
+        <Text className="text-white text-base font-['Inter-SemiBold']">Scan to Pay</Text>
         <TouchableOpacity
           onPress={() => {
             setTorch(!torch);
@@ -163,7 +164,7 @@ export default function QrScanScreen() {
             onPress={() => setScanned(false)}
             className="mt-4 bg-[#1C1C2E] rounded-xl px-6 py-3"
           >
-            <Text className="text-white font-['Inter_Medium']">Scan Again</Text>
+            <Text className="text-white font-['Inter-Medium']">Scan Again</Text>
           </TouchableOpacity>
         )}
       </View>

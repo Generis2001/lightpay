@@ -1,41 +1,121 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
-import { ArrowRight } from 'phosphor-react-native';
-import { Colors } from '@/constants/colors';
-import { FontFamily, FontSize } from '@/constants/typography';
-import { useWalletStore } from '@/store/wallet';
-import { formatNaira, formatUSD, maskBalance } from '@/lib/format';
+import React from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
+import { ArrowRight } from "phosphor-react-native";
+import { Colors } from "@/constants/colors";
+import { FontFamily, FontSize } from "@/constants/typography";
+import { useWalletStore } from "@/store/wallet";
+import { formatNaira, maskBalance } from "@/lib/format";
+import { CurrencyIcon } from "@/components/ui/CurrencyIcon";
+import { Button } from "@/components/ui/Button";
+import { useChainBalance, useLocalCryptoWallet } from "@/lib/crypto/hooks";
+import { formatCoin } from "@/lib/crypto/networks";
+import type { CryptoSymbol, LocalWallet } from "@/lib/crypto/keys";
 
 const CRYPTO_ASSETS = [
-  { symbol: 'BTC', name: 'Bitcoin', color: Colors.crypto.btc, emoji: '₿', available: false },
-  { symbol: 'ETH', name: 'Ethereum', color: Colors.crypto.eth, emoji: 'Ξ', available: false },
-  { symbol: 'SOL', name: 'Solana', color: Colors.crypto.sol, emoji: '◎', available: false },
-  { symbol: 'BNB', name: 'BNB', color: Colors.crypto.bnb, emoji: 'B', available: false },
-];
+  { symbol: "BTC", name: "Bitcoin", color: Colors.crypto.btc },
+  { symbol: "ETH", name: "Ethereum", color: Colors.crypto.eth },
+  { symbol: "SOL", name: "Solana", color: Colors.crypto.sol },
+  { symbol: "BNB", name: "BNB", color: Colors.crypto.bnb },
+] satisfies { symbol: CryptoSymbol; name: string; color: string }[];
+
+function CryptoCard({
+  asset,
+  userId,
+  wallet,
+  visible,
+}: {
+  asset: (typeof CRYPTO_ASSETS)[number];
+  userId: string | undefined;
+  wallet: LocalWallet | null | undefined;
+  visible: boolean;
+}) {
+  const balance = useChainBalance(userId, wallet, asset.symbol);
+  return (
+    <TouchableOpacity
+      style={styles.cryptoCard}
+      onPress={() =>
+        router.push({
+          pathname: "/(modals)/crypto-wallet",
+          params: { symbol: asset.symbol },
+        })
+      }
+    >
+      <View
+        style={[styles.cryptoIcon, { backgroundColor: `${asset.color}20` }]}
+      >
+        <CurrencyIcon currency={asset.symbol} size={32} />
+      </View>
+      <Text style={styles.cryptoName}>{asset.name}</Text>
+      <Text style={styles.cryptoSymbol}>{asset.symbol}</Text>
+      <Text style={styles.cryptoBalance}>
+        {!visible
+          ? "••••"
+          : balance.data !== undefined
+            ? formatCoin(BigInt(balance.data), asset.symbol)
+            : balance.isError
+              ? "Unavailable"
+              : "—"}{" "}
+        {asset.symbol}
+      </Text>
+      <View style={styles.cryptoComingSoon}>
+        <Text style={styles.cryptoComingSoonText}>
+          {wallet ? "Open wallet" : "Create or import"}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
 
 export default function WalletsScreen() {
-  const { nairaWallet, dollarWallet, balanceVisible } = useWalletStore();
+  const { nairaWallet, balanceVisible } = useWalletStore();
 
+  const { userId, wallet, query } = useLocalCryptoWallet();
+  const walletsQuery = useQuery({
+    queryKey: ["wallets"],
+    queryFn: async () => (await api.get("/wallets")).data.data,
+  });
+  const liveNairaWallet =
+    walletsQuery.data?.find((item: any) => item.currency === "NGN") ??
+    nairaWallet;
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
         <Text style={styles.title}>My Wallets</Text>
       </View>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        <TouchableOpacity
+          onPress={() => router.push("/(modals)/africa-transfer")}
+          style={{ padding: 16, borderRadius: 16, backgroundColor: "#E1F5E7" }}
+        >
+          <Text style={{ color: "#005828", fontSize: 17 }}>
+            African bank transfers →
+          </Text>
+        </TouchableOpacity>
 
         {/* Naira Wallet */}
-        <TouchableOpacity onPress={() => router.push('/(tabs)/home')}>
+        <TouchableOpacity onPress={() => router.push("/(tabs)/home")}>
           <LinearGradient
-            colors={['#003D20', '#005828', '#00C853']}
+            colors={["#003D20", "#005828", "#00C853"]}
             style={styles.walletCard}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
             <View style={styles.walletCardTop}>
-              <Text style={styles.walletFlag}>🇳🇬</Text>
+              <CurrencyIcon currency="NGN" />
               <View style={styles.activeBadge}>
                 <Text style={styles.activeBadgeText}>Active</Text>
               </View>
@@ -43,8 +123,10 @@ export default function WalletsScreen() {
             <Text style={styles.walletCurrencyLabel}>Nigerian Naira</Text>
             <Text style={styles.walletBalance}>
               {balanceVisible
-                ? formatNaira(nairaWallet?.balance ?? '0')
-                : maskBalance(0, 'NGN')}
+                ? liveNairaWallet
+                  ? formatNaira(liveNairaWallet.balance)
+                  : "—"
+                : maskBalance(0, "NGN")}
             </Text>
             <View style={styles.walletCardBottom}>
               <Text style={styles.walletCurrencyCode}>NGN</Text>
@@ -57,24 +139,33 @@ export default function WalletsScreen() {
         {/* Dollar Wallet — coming soon */}
         <View style={styles.comingSoonCard}>
           <LinearGradient
-            colors={['#0D1B2A', '#1A4A7A']}
+            colors={["#0D1B2A", "#1A4A7A"]}
             style={styles.walletCard}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
             <View style={styles.walletCardTop}>
-              <Text style={styles.walletFlag}>🇺🇸</Text>
+              <CurrencyIcon currency="USD" />
               <View style={styles.comingSoonBadge}>
                 <Text style={styles.comingSoonBadgeText}>Coming soon</Text>
               </View>
             </View>
             <Text style={styles.walletCurrencyLabel}>US Dollar</Text>
-            <Text style={[styles.walletBalance, styles.walletBalanceDisabled]}>$0.00</Text>
+            <Text style={[styles.walletBalance, styles.walletBalanceDisabled]}>
+              $0.00
+            </Text>
             <View style={styles.walletCardBottom}>
               <Text style={styles.walletCurrencyCode}>USD</Text>
-              <Text style={styles.comingSoonTag}>Virtual Card · FX · Remittance</Text>
+              <Text style={styles.comingSoonTag}>
+                Virtual Card · FX · Remittance
+              </Text>
             </View>
-            <View style={[styles.decorCircle, { borderColor: 'rgba(255,255,255,0.04)' }]} />
+            <View
+              style={[
+                styles.decorCircle,
+                { borderColor: "rgba(255,255,255,0.04)" },
+              ]}
+            />
           </LinearGradient>
         </View>
 
@@ -82,31 +173,49 @@ export default function WalletsScreen() {
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Crypto</Text>
           <View style={styles.comingSoonPill}>
-            <Text style={styles.comingSoonPillText}>Coming in v1.2</Text>
+            <Text style={styles.comingSoonPillText}>Send & receive</Text>
           </View>
         </View>
 
+        {wallet ? (
+          <Button
+            title="Wallet recovery and security"
+            variant="outline"
+            onPress={() => router.push("/(modals)/wallet-security")}
+          />
+        ) : (
+          <Button
+            title="Create or import a multichain wallet"
+            loading={query.isPending}
+            disabled={query.isError}
+            onPress={() => router.push("/(modals)/wallet-setup")}
+          />
+        )}
+        {query.isError && (
+          <Button
+            title="Retry wallet lookup"
+            variant="outline"
+            onPress={() => void query.refetch()}
+          />
+        )}
         <View style={styles.cryptoGrid}>
           {CRYPTO_ASSETS.map((asset) => (
-            <View key={asset.symbol} style={styles.cryptoCard}>
-              <View style={[styles.cryptoIcon, { backgroundColor: `${asset.color}20` }]}>
-                <Text style={[styles.cryptoSymbolText, { color: asset.color }]}>{asset.emoji}</Text>
-              </View>
-              <Text style={styles.cryptoName}>{asset.name}</Text>
-              <Text style={styles.cryptoSymbol}>{asset.symbol}</Text>
-              <Text style={styles.cryptoBalance}>$0.00</Text>
-              <View style={styles.cryptoComingSoon}>
-                <Text style={styles.cryptoComingSoonText}>Soon</Text>
-              </View>
-            </View>
+            <CryptoCard
+              key={asset.symbol}
+              asset={asset}
+              userId={userId}
+              wallet={wallet}
+              visible={balanceVisible}
+            />
           ))}
         </View>
 
         <View style={styles.infoBox}>
-          <Text style={styles.infoTitle}>💡 What's coming</Text>
+          <Text style={styles.infoTitle}>Your wallet, your keys</Text>
           <Text style={styles.infoText}>
-            Dollar Wallet with virtual card and USD transfers is launching next.
-            Crypto wallet with BTC, ETH, SOL and BNB follows — with instant Crypto ↔ Cash conversion.
+            One recovery phrase secures your crypto wallet on this device. Send
+            and receive on the selected network. Bank services use your account
+            verification.
           </Text>
         </View>
 
@@ -136,19 +245,19 @@ const styles = StyleSheet.create({
   walletCard: {
     borderRadius: 20,
     padding: 20,
-    overflow: 'hidden',
-    position: 'relative',
+    overflow: "hidden",
+    position: "relative",
     minHeight: 160,
   },
   walletCardTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 16,
   },
   walletFlag: { fontSize: 28 },
   activeBadge: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: "rgba(255,255,255,0.2)",
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -159,7 +268,7 @@ const styles = StyleSheet.create({
     color: Colors.white,
   },
   comingSoonBadge: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: "rgba(255,255,255,0.1)",
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -167,12 +276,12 @@ const styles = StyleSheet.create({
   comingSoonBadgeText: {
     fontSize: FontSize.caption,
     fontFamily: FontFamily.interMedium,
-    color: 'rgba(255,255,255,0.5)',
+    color: "rgba(255,255,255,0.5)",
   },
   walletCurrencyLabel: {
     fontSize: FontSize.bodySm,
     fontFamily: FontFamily.interRegular,
-    color: 'rgba(255,255,255,0.6)',
+    color: "rgba(255,255,255,0.6)",
     marginBottom: 4,
   },
   walletBalance: {
@@ -184,36 +293,36 @@ const styles = StyleSheet.create({
   },
   walletBalanceDisabled: { opacity: 0.4 },
   walletCardBottom: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   walletCurrencyCode: {
     fontSize: FontSize.bodySm,
     fontFamily: FontFamily.mono,
-    color: 'rgba(255,255,255,0.5)',
+    color: "rgba(255,255,255,0.5)",
     letterSpacing: 1,
   },
   comingSoonCard: { opacity: 0.85 },
   comingSoonTag: {
     fontSize: FontSize.caption,
     fontFamily: FontFamily.interRegular,
-    color: 'rgba(255,255,255,0.4)',
+    color: "rgba(255,255,255,0.4)",
   },
   decorCircle: {
-    position: 'absolute',
+    position: "absolute",
     width: 140,
     height: 140,
     borderRadius: 70,
     borderWidth: 30,
-    borderColor: 'rgba(255,255,255,0.05)',
+    borderColor: "rgba(255,255,255,0.05)",
     top: -40,
     right: -20,
   },
 
   sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
     marginTop: 4,
   },
@@ -235,24 +344,23 @@ const styles = StyleSheet.create({
   },
 
   cryptoGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 12,
   },
   cryptoCard: {
-    width: '47%',
+    width: "47%",
     backgroundColor: Colors.white,
     borderRadius: 16,
     padding: 16,
     gap: 4,
-    opacity: 0.75,
   },
   cryptoIcon: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 8,
   },
   cryptoSymbolText: {
@@ -281,7 +389,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
   cryptoComingSoonText: {
     fontSize: FontSize.caption,

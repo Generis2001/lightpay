@@ -1,13 +1,13 @@
 {
   "cli": {
-    "version": ">= 12.0.0",
+    "version": ">= 20.3.0",
     "appVersionSource": "remote"
   },
   "build": {
     "base": {
-      "node": "22.12.0",
+      "node": "22.16.0",
       "env": {
-        "EXPO_PUBLIC_APP_VERSION": "1.0.0"
+        "EXPO_PUBLIC_APP_VERSION": "1.1.0"
       }
     },
     "development": {
@@ -35,18 +35,20 @@
     },
     "production": {
       "extends": "base",
+      "environment": "production",
       "autoIncrement": true,
       "android": {
         "buildType": "app-bundle",
         "gradleCommand": ":app:bundleRelease"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.lightpay.ng/api/v1",
-        "EXPO_PUBLIC_APP_VERSION": "1.0.0"
+        "EXPO_PUBLIC_API_URL": "https://lightpay-backend-yfva.onrender.com/api/v1",
+        "EXPO_PUBLIC_APP_VERSION": "1.1.0"
       }
     },
     "production-apk": {
       "extends": "production",
+      "distribution": "internal",
       "android": {
         "buildType": "apk",
         "gradleCommand": ":app:assembleRelease"

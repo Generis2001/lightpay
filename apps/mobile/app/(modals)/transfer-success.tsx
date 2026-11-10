@@ -10,7 +10,9 @@ import Animated, {
   withTiming,
   Easing,
 } from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '@/lib/haptics';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Colors } from '@/constants/colors';
 import { FontFamily, FontSize } from '@/constants/typography';
@@ -19,18 +21,31 @@ import { formatNaira } from '@/lib/format';
 export default function TransferSuccessScreen() {
   const params = useLocalSearchParams<{
     reference: string;
+    status: string;
+    transactionId: string;
+    kind: string;
     accountName: string;
     bankName: string;
     amount: string;
+    currency: string;
   }>();
 
+  const { data: transaction } = useQuery({
+    queryKey: ['transactions', params.transactionId],
+    queryFn: () => api.get(`/transactions/${params.transactionId}`).then((r) => r.data.data),
+    enabled: !!params.transactionId,
+    refetchInterval: (query) => ['processing', 'pending'].includes(query.state.data?.status ?? params.status) ? 3000 : false,
+  });
+  const status = transaction?.status ?? params.status ?? 'processing';
+  const completed = status === 'completed';
+  const failed = ['failed', 'reversed'].includes(status);
   const scale = useSharedValue(0);
   const opacity = useSharedValue(0);
   const amountY = useSharedValue(20);
   const amountOpacity = useSharedValue(0);
 
   useEffect(() => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (completed) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     scale.value = withSpring(1, { damping: 12, stiffness: 200 });
     opacity.value = withTiming(1, { duration: 300 });
@@ -54,20 +69,22 @@ export default function TransferSuccessScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         <Animated.View style={[styles.iconWrapper, iconStyle]}>
-          <View style={styles.checkCircle}>
-            <Text style={styles.checkMark}>✓</Text>
+          <View style={[styles.checkCircle, { backgroundColor: completed ? Colors.brand.DEFAULT : failed ? Colors.semantic.error : Colors.gray[500] }]}>
+            <Text style={styles.checkMark}>{completed ? '✓' : failed ? '×' : '…'}</Text>
           </View>
         </Animated.View>
 
         <Animated.View style={[styles.textSection, amountStyle]}>
-          <Text style={styles.successLabel}>Transfer Successful!</Text>
-          <Text style={styles.amount}>{formatNaira(amount)}</Text>
+          <Text style={styles.successLabel}>{`${params.kind ?? 'Payment'} ${completed ? 'completed' : failed ? 'failed' : 'processing'}`}</Text>
+          <Text style={styles.amount}>{(transaction?.currency ?? params.currency ?? 'NGN') === 'NGN' ? formatNaira(amount) : `${transaction?.amount ?? params.amount} ${transaction?.currency ?? params.currency}`}</Text>
           <Text style={styles.recipient}>
-            Sent to <Text style={styles.recipientName}>{params.accountName}</Text>
+            Recipient: <Text style={styles.recipientName}>{params.accountName}</Text>
           </Text>
           <Text style={styles.bank}>{params.bankName}</Text>
         </Animated.View>
 
+        {transaction?.metadata?.token && <View style={styles.referenceCard}><Text style={styles.referenceLabel}>Electricity token</Text><Text selectable style={styles.reference}>{String(transaction.metadata.token)}</Text>{transaction.metadata.units && <Text>{String(transaction.metadata.units)} units</Text>}</View>}
+        {transaction?.metadata?.txHash && <Text selectable style={styles.reference}>{String(transaction.metadata.txHash)}</Text>}
         <View style={styles.referenceCard}>
           <Text style={styles.referenceLabel}>Transaction Reference</Text>
           <Text style={styles.reference}>{params.reference}</Text>

@@ -6,6 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Platform,
+  Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -26,6 +28,8 @@ import { FontFamily, FontSize } from '@/constants/typography';
 import { useAuthStore } from '@/store/auth';
 import { getInitials } from '@/lib/format';
 import { api } from '@/lib/api';
+import { useQueryClient } from '@tanstack/react-query';
+import { useWalletStore } from '@/store/wallet';
 
 interface MenuItemProps {
   icon: React.ReactNode;
@@ -54,23 +58,23 @@ const MenuItem: React.FC<MenuItemProps> = ({ icon, label, sublabel, onPress, dan
 );
 
 export default function ProfileScreen() {
-  const { user, logout, kycTier } = useAuthStore() as any;
+  const { user, logout } = useAuthStore();
+  const queryClient = useQueryClient();
   const tier = user?.kycTier ?? 0;
 
+  const performLogout = async () => {
+    try { await api.post('/notifications/push/disable'); } catch {}
+    try { await api.post('/auth/logout', { refreshToken: useAuthStore.getState().refreshToken }); } catch {}
+    queryClient.clear();
+    useWalletStore.getState().reset();
+    logout();
+    router.replace('/(auth)/login');
+  };
   const handleLogout = () => {
+    if (Platform.OS === 'web') { void performLogout(); return; }
     Alert.alert('Log Out', 'Are you sure you want to log out?', [
       { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Log Out',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await api.post('/auth/logout');
-          } catch (_) {}
-          logout();
-          router.replace('/(auth)/login');
-        },
-      },
+      { text: 'Log Out', style: 'destructive', onPress: performLogout },
     ]);
   };
 
@@ -96,20 +100,20 @@ export default function ProfileScreen() {
               </Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.editButton}>
+          <TouchableOpacity style={styles.editButton} onPress={() => router.push('/(modals)/personal-information')}>
             <Text style={styles.editButtonText}>Edit</Text>
           </TouchableOpacity>
         </View>
 
         {/* KYC Upgrade */}
         {tier < 2 && (
-          <TouchableOpacity style={styles.kycUpgrade}>
+          <TouchableOpacity style={styles.kycUpgrade} onPress={() => router.push('/(modals)/account-limits')}>
             <View style={styles.kycUpgradeLeft}>
               <IdentificationCard size={24} color={Colors.brand.DEFAULT} />
               <View>
-                <Text style={styles.kycUpgradeTitle}>Upgrade to Tier {tier + 1}</Text>
+                <Text style={styles.kycUpgradeTitle}>Identity verification</Text>
                 <Text style={styles.kycUpgradeSub}>
-                  {tier === 0 ? 'Verify BVN to unlock higher limits' : 'Complete full KYC for all features'}
+                  View your status and verification availability
                 </Text>
               </View>
             </View>
@@ -118,13 +122,13 @@ export default function ProfileScreen() {
         )}
 
         {/* Referral */}
-        <TouchableOpacity style={styles.referralCard}>
+        <TouchableOpacity style={styles.referralCard} onPress={() => Share.share({ message: `Join me on LightPay. My referral code is ${user?.referralCode ?? ""}.` })} disabled={!user?.referralCode}>
           <Text style={styles.referralEmoji}>🎁</Text>
           <View style={styles.referralContent}>
             <Text style={styles.referralTitle}>Refer a Friend</Text>
             <Text style={styles.referralCode}>Code: {user?.referralCode ?? '...'}</Text>
           </View>
-          <Text style={styles.referralReward}>Earn ₦500</Text>
+          <Text style={styles.referralReward}>Share code</Text>
         </TouchableOpacity>
 
         {/* Menu sections */}
@@ -134,12 +138,12 @@ export default function ProfileScreen() {
             <MenuItem
               icon={<User size={20} color={Colors.ink.DEFAULT} />}
               label="Personal Information"
-              onPress={() => {}}
+              onPress={() => router.push('/(modals)/personal-information')}
             />
             <MenuItem
               icon={<Lock size={20} color={Colors.ink.DEFAULT} />}
               label="Change PIN"
-              onPress={() => router.push('/(auth)/create-pin')}
+              onPress={() => router.push('/(modals)/change-pin')}
             />
             <MenuItem
               icon={<Fingerprint size={20} color={Colors.ink.DEFAULT} />}
@@ -150,8 +154,8 @@ export default function ProfileScreen() {
             <MenuItem
               icon={<CurrencyNgn size={20} color={Colors.ink.DEFAULT} />}
               label="Transaction Limits"
-              sublabel={`Tier ${tier} — ₦${tier === 0 ? '20,000' : '1,000,000'}/day`}
-              onPress={() => {}}
+              sublabel={`Tier ${tier} account`}
+              onPress={() => router.push('/(modals)/account-limits')}
             />
           </View>
         </View>
@@ -162,12 +166,12 @@ export default function ProfileScreen() {
             <MenuItem
               icon={<Bell size={20} color={Colors.ink.DEFAULT} />}
               label="Notifications"
-              onPress={() => {}}
+              onPress={() => router.push('/(modals)/notifications')}
             />
             <MenuItem
               icon={<Shield size={20} color={Colors.ink.DEFAULT} />}
               label="Security & Privacy"
-              onPress={() => {}}
+              onPress={() => router.push('/(modals)/security')}
             />
           </View>
         </View>
@@ -178,7 +182,7 @@ export default function ProfileScreen() {
             <MenuItem
               icon={<QuestionMark size={20} color={Colors.ink.DEFAULT} />}
               label="Help Centre"
-              onPress={() => {}}
+              onPress={() => router.push('/(modals)/help')}
             />
             <MenuItem
               icon={<SignOut size={20} color={Colors.semantic.error} />}

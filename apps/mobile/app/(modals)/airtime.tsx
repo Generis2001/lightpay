@@ -9,7 +9,7 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
 import { router } from 'expo-router';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
@@ -24,16 +24,17 @@ import { formatNaira } from '@/lib/format';
 
 type Network = 'MTN' | 'GLO' | 'AIRTEL' | '9MOBILE';
 
-const NETWORKS: { id: Network; name: string; color: string; emoji: string }[] = [
-  { id: 'MTN', name: 'MTN', color: '#FFCC00', emoji: '🟡' },
-  { id: 'GLO', name: 'GLO', color: '#006837', emoji: '🟢' },
-  { id: 'AIRTEL', name: 'Airtel', color: '#E40032', emoji: '🔴' },
-  { id: '9MOBILE', name: '9mobile', color: '#006F3C', emoji: '🟩' },
+const NETWORKS: { id: Network; name: string; color: string }[] = [
+  { id: 'MTN', name: 'MTN', color: '#FFCC00' },
+  { id: 'GLO', name: 'GLO', color: '#006837' },
+  { id: 'AIRTEL', name: 'Airtel', color: '#E40032' },
+  { id: '9MOBILE', name: '9mobile', color: '#006F3C' },
 ];
 
 const QUICK_AMOUNTS = [50, 100, 200, 500, 1000, 2000];
 
 export default function AirtimeScreen() {
+  const queryClient = useQueryClient();
   const [network, setNetwork] = useState<Network>('MTN');
   const [phone, setPhone] = useState('');
   const [amount, setAmount] = useState('');
@@ -47,8 +48,7 @@ export default function AirtimeScreen() {
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const { data } = await api.post('/fiat/airtime', {
-        walletId: nairaWallet?.id,
+      const { data } = await api.post('/bills/airtime', {
         network,
         phone: phone.startsWith('0') ? `+234${phone.slice(1)}` : phone,
         amount: parseFloat(amount),
@@ -56,9 +56,11 @@ export default function AirtimeScreen() {
       });
       return data.data;
     },
-    onSuccess: () => {
-      Toast.show({ type: 'success', text1: 'Airtime sent!', text2: `₦${amount} airtime to ${phone}` });
-      router.back();
+    onSuccess: (data) => {
+      const receipt = data.transaction ?? data;
+      queryClient.invalidateQueries({ queryKey: ['wallets'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      router.replace({ pathname: '/(modals)/transfer-success', params: { transactionId: receipt.id, reference: receipt.reference, amount, accountName: phone, bankName: network, kind: 'Airtime purchase', status: receipt.status ?? 'processing' } });
     },
     onError: (error) => {
       Toast.show({ type: 'error', text1: 'Failed', text2: getErrorMessage(error) });
@@ -68,7 +70,10 @@ export default function AirtimeScreen() {
   });
 
   const handleContinue = () => {
-    if (!phone || !amount || !network) return;
+    if (!/^(0[789]\d{9}|\+234[789]\d{9})$/.test(phone) || !Number.isFinite(Number(amount)) || Number(amount) < 50) {
+      Toast.show({ type: 'error', text1: 'Check phone number and amount', text2: 'Enter a valid Nigerian number and at least ₦50.' });
+      return;
+    }
     setShowPin(true);
   };
 
@@ -90,7 +95,6 @@ export default function AirtimeScreen() {
                 style={[styles.networkTile, network === n.id && styles.networkTileActive]}
                 onPress={() => setNetwork(n.id)}
               >
-                <Text style={styles.networkEmoji}>{n.emoji}</Text>
                 <Text style={[styles.networkName, network === n.id && styles.networkNameActive]}>
                   {n.name}
                 </Text>

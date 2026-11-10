@@ -1,0 +1,13 @@
+# Verification artifacts
+
+`lightpay-v7.apk` is the replacement EAS Android APK, package `com.lightpay.app`, version 1.0.1, Android version code 7, minimum API 24 and target API 36. Its ZIP integrity, manifest, v2 signature and signed content digests passed verification. It uses the same signing certificate as v6. All native libraries are compressed for extraction, and all ARM64/x86_64 ELF load segments have at least 16 KB alignment. `lightpay-v7-verification.json` records these checks; `lightpay-v7.sha256` records its SHA-256 checksum. The APK remains ignored by Git. Installation on the reported Android 16 device is still untested.
+
+[Download APK v7](https://expo.dev/artifacts/eas/Oqcynb9Kidn8Wq3sb22Wwf2-se-Dl1Nt3WWNphGJeU4.apk). EAS build: `2821800c-4abd-4058-809d-d47a7f80875e`. Version code 6 is retained for comparison after the reported installation failure; use v7 for the next device check.
+
+Screenshots under `playwright/` use artificial users, balances, banks, quotes and deposit addresses. They document browser navigation/UI checks and must not be used as payment or identity-verification evidence. Native camera, biometrics, push and installed-device behavior still need device testing.
+
+The API is deployed at `https://lightpay-backend-yfva.onrender.com/api/v1`. Backend SQL health and real Brevo email registration/login passed. `live-auth-verification.json` records delivery, account creation, PIN setup, logout, fresh sign-in and authenticated profile/NGN-wallet access without credentials. SMS, banking/identity providers, funded crypto sends and installed-device behavior remain pending. See `DEPLOY.md` and `docs/application-audit.md` for scope and validation.
+
+Mobile source version 1.1.0 includes encrypted device-created/imported BTC/ETH/SOL/BNB wallets and the lightning-L launcher/splash. APK v7 predates these additions. The shared logo source is `apps/mobile/assets/images/brand.json`; `apps/mobile/scripts/generate-brand-assets.py` regenerates the native PNGs and SVG.
+
+`wallet-ui-verification.json` records twelve successful browser checks against the current source: 24-word wallet creation, required backup confirmation, encrypted storage, a live Bitcoin balance read, wrong-password rejection, recovery matching, clearing recovery on blur, password change, device removal, invalid import rejection and restoration of the original address. Authenticated Render API reads used a localhost-only browser proxy. No funded transaction was executed. Native storage regression checks also confirm oversized ASCII/Unicode recovery passphrases are rejected before saving a vault or wallet metadata.

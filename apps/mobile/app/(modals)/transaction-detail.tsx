@@ -41,11 +41,13 @@ const STATUS_META = {
 export default function TransactionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
 
-  const { data: tx, isLoading } = useQuery({
+  const { data: tx, isLoading, isError, refetch } = useQuery({
     queryKey: ['transaction', id],
     queryFn: () => api.get(`/transactions/${id}`).then((r) => r.data.data),
     enabled: !!id,
   });
+
+  if (isError || (!id && !isLoading)) return <View style={{ flex: 1 }}><ScreenHeader title="Transaction" /><Text style={{ padding: 20 }}>Could not load this transaction.</Text><TouchableOpacity onPress={() => refetch()}><Text style={{ padding: 20 }}>Try again</Text></TouchableOpacity></View>;
 
   const handleShare = async () => {
     if (!tx) return;
@@ -85,7 +87,7 @@ export default function TransactionDetailScreen() {
         <TouchableOpacity onPress={() => router.back()}>
           <X size={24} color="white" />
         </TouchableOpacity>
-        <Text className="text-white text-base font-['Inter_SemiBold']">Transaction Details</Text>
+        <Text className="text-white text-base font-['Inter-SemiBold']">Transaction Details</Text>
         <TouchableOpacity onPress={handleShare}>
           <ShareFat size={22} color="rgba(255,255,255,0.6)" />
         </TouchableOpacity>
@@ -114,7 +116,7 @@ export default function TransactionDetailScreen() {
             style={{ backgroundColor: `${statusMeta.color}20` }}
           >
             <statusMeta.Icon size={14} color={statusMeta.color} />
-            <Text className="text-xs font-['Inter_Medium']" style={{ color: statusMeta.color }}>
+            <Text className="text-xs font-['Inter-Medium']" style={{ color: statusMeta.color }}>
               {statusMeta.label}
             </Text>
           </View>

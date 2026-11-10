@@ -69,11 +69,13 @@ export const Input = forwardRef<TextInput, InputProps>(
           style={[
             styles.inputWrapper,
             isFocused && styles.focused,
+            props.multiline && { height: 144, alignItems: 'flex-start', paddingVertical: 14 },
             error ? styles.errorBorder : null,
           ]}
         >
           {prefix && <View style={styles.prefix}>{prefix}</View>}
           <TextInput
+            accessibilityLabel={props.accessibilityLabel ?? label}
             ref={ref}
             style={[styles.input, style]}
             placeholderTextColor={Colors.gray[400]}

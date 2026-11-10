@@ -33,7 +33,7 @@ import { formatNaira, maskBalance, formatTransactionDateShort, getInitials } fro
 import type { TransactionListItem } from '@lightpay/types';
 import * as Clipboard from 'expo-clipboard';
 import Toast from 'react-native-toast-message';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '@/lib/haptics';
 
 const QUICK_ACTIONS = [
   { id: 'send', label: 'Send', icon: PaperPlaneRight, route: '/(modals)/send-money' },
@@ -77,7 +77,7 @@ export default function HomeScreen() {
     setVirtualAccount,
   } = useWalletStore();
 
-  const { data: walletsData, refetch: refetchWallets } = useQuery({
+  const { data: walletsData, refetch: refetchWallets, isError: walletsError } = useQuery({
     queryKey: ['wallets'],
     queryFn: async () => {
       const { data } = await api.get('/wallets');
@@ -102,7 +102,7 @@ export default function HomeScreen() {
     queryKey: ['transactions', 'recent'],
     queryFn: async () => {
       const { data } = await api.get('/transactions?limit=5');
-      return data.data;
+      return data;
     },
   });
 
@@ -142,6 +142,9 @@ export default function HomeScreen() {
           />
         }
       >
+        {walletsError && <TouchableOpacity onPress={() => refetchWallets()} style={{ padding: 20, backgroundColor: '#FFF4E5' }}>
+          <Text style={{ color: '#854D0E' }}>Unable to load your wallet. Check your connection and tap to retry.</Text>
+        </TouchableOpacity>}
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>

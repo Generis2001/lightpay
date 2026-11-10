@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { Button } from '@/components/ui/Button';
@@ -18,6 +18,7 @@ import { api, getErrorMessage } from '@/lib/api';
 import { formatNaira } from '@/lib/format';
 
 export default function ConfirmTransferScreen() {
+  const queryClient = useQueryClient();
   const params = useLocalSearchParams<{
     bankCode: string;
     bankName: string;
@@ -33,27 +34,31 @@ export default function ConfirmTransferScreen() {
   const [step, setStep] = useState<'review' | 'pin'>('review');
 
   const amount = parseFloat(params.amount ?? '0');
-  const fee = amount > 5000 ? 25 : amount > 0 ? 10.75 : 0;
+  const fee = amount > 50000 ? 50 : amount > 5000 ? 25 : amount > 0 ? 10.75 : 0;
 
   const mutation = useMutation({
     mutationFn: async (enteredPin: string) => {
-      const { data } = await api.post('/fiat/transfer/bank', {
-        walletId: params.walletId,
+      const { data } = await api.post('/transfers/bank', {
         bankCode: params.bankCode,
         accountNumber: params.accountNumber,
-        accountName: params.accountName,
+        recipientName: params.accountName,
+        bankName: params.bankName,
         amount,
         narration: params.narration,
         pin: enteredPin,
-        saveBeneficiary: true,
       });
       return data.data;
     },
     onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['wallets'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
       router.replace({
         pathname: '/(modals)/transfer-success',
         params: {
-          reference: data.transaction.reference,
+          reference: data.reference,
+          transactionId: data.id,
+          kind: 'Transfer',
+          status: data.status,
           accountName: params.accountName,
           bankName: params.bankName,
           amount: params.amount,
@@ -69,7 +74,7 @@ export default function ConfirmTransferScreen() {
 
   const handlePinComplete = (value: string) => {
     setPinError(false);
-    mutation.mutate(value);
+    if (!mutation.isPending) mutation.mutate(value);
   };
 
   if (step === 'pin') {

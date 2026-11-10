@@ -65,6 +65,7 @@ export default function VerifyOtpScreen() {
         });
 
         if (purpose === 'registration') {
+          setTokens(data.data.tokens.accessToken, data.data.tokens.refreshToken);
           if (data.data.user) {
             setUser(data.data.user);
           }
@@ -73,6 +74,7 @@ export default function VerifyOtpScreen() {
           const { user, tokens } = data.data;
           setUser(user);
           setTokens(tokens.accessToken, tokens.refreshToken);
+          setPinSet(!!user.hasPin);
           if (user.hasPin) {
             router.replace('/(tabs)/home');
           } else {
@@ -87,7 +89,7 @@ export default function VerifyOtpScreen() {
         setLoading(false);
       }
     },
-    [identifier, authMethod, purpose, setUser, setTokens]
+    [identifier, authMethod, purpose, setUser, setTokens, setPinSet]
   );
 
   return (
@@ -122,7 +124,7 @@ export default function VerifyOtpScreen() {
         )}
 
         <View style={styles.resendRow}>
-          <Text style={styles.resendText}>Didn't receive the code? </Text>
+          <Text style={styles.resendText}>{"Didn't receive the code? "}</Text>
           <TouchableOpacity onPress={handleResend} disabled={cooldown > 0}>
             <Text style={[styles.resendLink, cooldown > 0 && styles.resendDisabled]}>
               {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend'}

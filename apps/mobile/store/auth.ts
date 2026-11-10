@@ -1,21 +1,27 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import type { User } from '@lightpay/types';
 
 const secureStorage = {
   getItem: async (name: string) => {
-    return SecureStore.getItemAsync(name);
+    if (Platform.OS === 'web' && typeof window === 'undefined') return null;
+    return Platform.OS === 'web' ? AsyncStorage.getItem(name) : SecureStore.getItemAsync(name);
   },
   setItem: async (name: string, value: string) => {
-    return SecureStore.setItemAsync(name, value);
+    if (Platform.OS === 'web' && typeof window === 'undefined') return;
+    return Platform.OS === 'web' ? AsyncStorage.setItem(name, value) : SecureStore.setItemAsync(name, value);
   },
   removeItem: async (name: string) => {
-    return SecureStore.deleteItemAsync(name);
+    if (Platform.OS === 'web' && typeof window === 'undefined') return;
+    return Platform.OS === 'web' ? AsyncStorage.removeItem(name) : SecureStore.deleteItemAsync(name);
   },
 };
 
 interface AuthState {
+  hydrated: boolean;
   user: User | null;
   accessToken: string | null;
   refreshToken: string | null;
@@ -44,6 +50,7 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
+      hydrated: false,
       user: null,
       accessToken: null,
       refreshToken: null,
@@ -59,7 +66,7 @@ export const useAuthStore = create<AuthState>()(
       setUser: (user) => set({ user, isAuthenticated: true }),
 
       setTokens: (accessToken, refreshToken) =>
-        set({ accessToken, refreshToken }),
+        set({ accessToken, refreshToken, isAuthenticated: true }),
 
       setDeviceId: (deviceId) => set({ deviceId }),
 
@@ -95,6 +102,9 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'lightpay-auth',
       storage: createJSONStorage(() => secureStorage),
+      onRehydrateStorage: () => () => {
+        queueMicrotask(() => useAuthStore.setState({ hydrated: true }));
+      },
       partialize: (state) => ({
         user: state.user,
         refreshToken: state.refreshToken,

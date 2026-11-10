@@ -1,0 +1,52 @@
+# LightPay application and launch audit
+
+Reviewed 10 November 2026. The free combined Render backend is running with live SQL health. Brevo's private REST key/sender are configured, and real email registration and fresh sign-in passed at commit `8f862c0`. Mobile version 1.1.0 replaces server custody with encrypted device-created/imported crypto wallets and adds the lightning-L launcher/splash. The previous APK v7 passed artifact checks; native installation remains untested.
+
+## Implemented in source
+
+- Explicit index route, disabled sitemap, native link recovery, protected navigation, auth hydration and safe back navigation; corrected NativeWind runtime/Babel and npm workspace dependencies.
+- Correct gateway prefixes/nested routes and raw webhook forwarding. Real HTTP regression checks cover routing and preserve original webhook bytes.
+- Persisted sessions with hashed refresh tokens, device binding, rotation, replay detection, expiry/account checks and logout revocation; persisted hashed, single-use OTP challenges and throttling. Email/phone verification and protected verified names.
+- Brevo email OTP delivery with restricted-key configuration, configured expiry text, provider acknowledgement checks, failed-challenge deletion, and existing SendGrid compatibility. Real HTTP fixture checks cover successful sends, failed sends, quota exhaustion, missing configuration, network failure and OTP reuse.
+- Consistent normalized email identity for registration, OTP verification and sign-in. Real Brevo receipt, account creation, PIN setup, logout, fresh sign-in, access/refresh token issuance, `/auth/me` and zero-balance NGN-wallet access passed with a separate owned Gmail alias.
+- Authenticated initial PIN setup and PIN changes; server-side PIN checks on bank, bill, crypto and international sends.
+- NGN wallet initialization, persisted request idempotency, concurrent outgoing tier/day limits, provider-submission claims, status polling, scheduled reconciliation and atomic one-time refunds/notifications. VTpass quotes are checked on the server; electricity receipt details are retained.
+- Paystack customer/account mapping, verified dedicated-account provisioning, card initialization and verification, signed raw webhooks and idempotent provider-confirmed credits. Funding ownership is persisted before a provider request, including timeouts.
+- Prepared Flutterwave outgoing bank corridors, bank/branch discovery, fee/rate review, NGN debit and confirmation matching. Countries must be explicitly activated after account-specific testing.
+- Device crypto wallets for BTC/ETH/SOL/BNB: English BIP39 creation/import, standard account derivation, AES-GCM encrypted vaults, device-only native SecureStore, public mainnet checks/balances, local signing and confirmation. Bitcoin BIP84 restoration scans receiving/change history. Exact signed transactions are saved before networking; retries validate details and reuse identical bytes. Pending/unknown sends block another on that network.
+- Wallet backup confirmation, password changes, private recovery reveal and explicitly confirmed device removal. Background/blur clears sensitive fields and invalidates asynchronous operations even after foreground return. Native sensitive screens request screenshot prevention. The retired custody module starts no Fireblocks service/provider/poller; legacy provision/quote/send routes return 410.
+- Shared vector geometry for the white lightning-L mark, generated launcher/adaptive/favicon/splash assets, startup splash held through fonts/auth hydration, and branded loading/get-started UI. Native text-encoding/Buffer initialization precedes wallet imports; Expo's web import-meta transform fixes Zustand client startup.
+- Prepared Prembly BVN/NIN verification with explicit consent, live selfie, identity/name/birthdate/face/liveness matching, keyed identity uniqueness and tier updates. Production URL/schema must be confirmed with the provider.
+- Persisted in-app notifications, read/unread APIs and a push outbox with retries, device-token registration/disable and active-session checks before sending.
+- Profile/security/limits/help screens, receive account sharing/QR, QR scan, provider funding/status controls, crypto send/receive controls and African transfer review. Logout clears wallet/query data and disables push where reachable.
+- Checked-in auth/fiat migrations, URL-based shared PostgreSQL configuration, production synchronization disabled, upstream health endpoints and Docker workspace build definitions.
+- Official bundled BTC/ETH/SOL/BNB artwork. All eleven supported/planned fiat wallet or payout entries use currency symbols/codes and documented official issuer references. See [currency artwork research](currency-assets.md).
+
+## Still needed before live availability
+
+| Area | Remaining dependency or limitation |
+| --- | --- |
+| Hosted database/API | The combined free Docker service is deployed at `https://lightpay-backend-yfva.onrender.com`; email identity fix `8f862c0` deployed successfully as `dep-dbp60sdg1s2s73c1ce3g`. Public `/api/v1/health` confirms auth and fiat SQL connectivity. The APK uses the Render hostname; `api.lightpay.ng` DNS is not configured. The external database connection from this machine timed out. See [deployment setup](../DEPLOY.md). |
+| Phone OTP | Real email delivery and authentication passed; SMS/Termii delivery remains unverified. Brevo Free permits 300 transactional emails/day. Maintain sender/key configuration and rotate privately when required. |
+| Installed APK | Validate cold launch/logo, email/PIN/session recovery, wallet creation/import/reveal/password/device removal, back navigation, camera/selfie/QR, biometrics, push, sharing and device-network access. Browser/fixture/Hermes checks are not installed-device validation. |
+| Provider activation | Confirm Paystack receiving/payout approval, VTpass products, Flutterwave FX/fee/debit/corridor contracts, and Prembly endpoint/schema/verification decisions with the actual accounts. No real provider financial transaction or identity check has been run. |
+| Crypto transfers | Independent address vectors, encrypted storage, mainnet guards, signed transaction details and identical retries pass fixtures. Funded on-chain broadcasts and native storage/recovery remain untested. Only the documented initial account paths and native coins are supported; local history omits imported incoming transactions. Bitcoin discovery limits and uncertain transaction recovery are documented in DEPLOY.md. |
+| African bank coverage | Flutterwave lists candidate outgoing corridors only; supported banks depend on the account/provider. Incoming bank accounts remain Nigerian NGN Paystack accounts. Receiving across all African banks is not implemented. |
+| USD and conversion | USD balances/accounts/cards, USD transfers and crypto-to-cash conversion remain unimplemented. |
+| Uncertain provider outcomes | Status stays processing without confirmation. Missing/mismatched Flutterwave debits, provider-success/DB-rollback provisioning and a lost card checkout URL need operator recovery/contract validation. |
+| Tier balance policy | Outgoing daily/per-payment limits are enforced. Tier 0's documented ₦100,000 balance cap is exposed but not universally enforced on credits; an external-deposit/refund hold/review policy remains needed. Provider funding and receiving-account creation currently require Tier 1. Product/provider approval of tier limits remains needed. |
+| Push | Device/EAS/FCM credentials and delivery testing; Expo receipt polling is not implemented, so tickets do not prove delivery. Offline logout cannot revoke a remote session until connectivity returns. |
+| Production operations | The initial combined Docker image is running on Render. Backups, migration rehearsal, reconciliation monitoring/alerts and operator resolution for uncertain states still need operational validation. Free hosting pauses background jobs during inactivity, and the free database expires on 8 December 2026. Docker remains unavailable in this WSL environment. |
+| LightPay branding | Lightning-L artwork is generated and wired to launcher, adaptive icon, favicon and startup splash. Cold-start rendering on the installed device remains to be checked. Crypto logos are bundled from official project resources. |
+
+## Validation
+
+All five workspace type checks, mobile lint (zero errors; existing warnings), auth/fiat/gateway production builds and Android Hermes export pass. The full integration run has 56 tests: **43 passed, 13 database cases skipped, zero failures**. Its 12 wallet checks include independent derivation, missing native encoding globals, Unicode, AES-GCM tampering/owner binding, exact decimals, wrong-network guards, decoded BTC/EVM/Solana signatures, Bitcoin discovery bounds, native-storage fixtures, concurrent creation, privacy invalidation and damaged/identical retries. HTTP fixtures also cover Brevo delivery/reuse/case normalization, gateway/PIN, custody retirement and backend supervision. Database cases require an isolated `LIGHTPAY_TEST_DATABASE_URL`; the live health check and live email flow do not replace those regressions.
+
+The previous APK v7 passes ZIP integrity, manifest, v2 signature, content-digest and 64-bit native 16 KB alignment checks. It embeds the working Render API URL and retains v6's signing certificate. Real email delivery and API authentication evidence is recorded separately in `output/live-auth-verification.json`; fixture signing and browser checks have not executed funded transfers. No real provider financial transaction, identity check or installed-device test has occurred.
+
+`output/wallet-ui-verification.json` records twelve passing browser checks for wallet creation, backup enforcement, encrypted storage, live Bitcoin balance reading, password/recovery/privacy controls, removal and import restoration. Wallet tests also cover oversized ASCII/Unicode encrypted records and verify that failed imports save neither vaults nor metadata. Mobile type checking, the affected encryption lint check and all twelve crypto wallet tests passed after the storage limit fix.
+
+## APK artifact
+
+Use the current release linked in [artifact notes](../output/README.md). Native artwork requires a new installed APK; a Render backend deployment does not update the launcher/splash on an existing installation. Provider activation remains separate.

@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { View, TextInput, StyleSheet, Pressable, Platform } from 'react-native';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '@/lib/haptics';
 import { Colors } from '@/constants/colors';
 import { FontFamily, FontSize } from '@/constants/typography';
 

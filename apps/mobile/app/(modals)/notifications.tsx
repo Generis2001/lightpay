@@ -11,6 +11,7 @@ import {
   Info,
   CheckCircle,
 } from 'phosphor-react-native';
+import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { api } from '../../lib/api';
 import { Colors } from '../../constants/colors';
 
@@ -44,63 +45,16 @@ function timeAgo(date: string) {
   return new Date(date).toLocaleDateString('en-NG', { month: 'short', day: 'numeric' });
 }
 
-// Placeholder notifications for dev
-const PLACEHOLDER: Notification[] = [
-  {
-    id: '1',
-    type: 'credit',
-    title: 'Money Received',
-    body: '₦5,000 from Adebayo Johnson has been credited to your wallet.',
-    isRead: false,
-    createdAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
-  },
-  {
-    id: '2',
-    type: 'debit',
-    title: 'Transfer Successful',
-    body: '₦2,000 sent to GTBank — 0012345678. Reference: LP-NIP-XXXX.',
-    isRead: false,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-  },
-  {
-    id: '3',
-    type: 'security',
-    title: 'New Device Login',
-    body: "Your account was accessed from a new device. If this wasn't you, secure your account immediately.",
-    isRead: true,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-  },
-  {
-    id: '4',
-    type: 'info',
-    title: 'Verify Your BVN',
-    body: 'Increase your daily limit to ₦1,000,000 by verifying your BVN. It only takes 2 minutes.',
-    isRead: true,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
-  },
-  {
-    id: '5',
-    type: 'credit',
-    title: 'Airtime Purchase Successful',
-    body: '₦500 MTN airtime recharged to 08012345678.',
-    isRead: true,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString(),
-  },
-];
-
 export default function NotificationsScreen() {
   const queryClient = useQueryClient();
 
-  const { data: notifications = PLACEHOLDER, isLoading, refetch, isRefetching } = useQuery({
+  const { data: notifications = [], isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['notifications'],
     queryFn: async () => {
-      try {
-        const res = await api.get('/notifications');
-        return res.data.data as Notification[];
-      } catch {
-        return PLACEHOLDER;
-      }
+      const res = await api.get('/notifications');
+      return res.data.data as Notification[];
     },
+    retry: false,
   });
 
   const markAllReadMutation = useMutation({
@@ -113,6 +67,8 @@ export default function NotificationsScreen() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
   });
 
+  if (isError) return <View style={{ flex: 1, backgroundColor: '#F9FAFB' }}><ScreenHeader title="Notifications" /><View style={{ padding: 24, gap: 16 }}><Text style={{ fontSize: 17 }}>Notifications are currently unavailable.</Text><Text>Check transaction history for your payment status.</Text><TouchableOpacity onPress={() => refetch()}><Text style={{ color: '#005828' }}>Try again</Text></TouchableOpacity></View></View>;
+
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   return (
@@ -123,10 +79,10 @@ export default function NotificationsScreen() {
           <X size={24} color="white" />
         </TouchableOpacity>
         <View className="flex-row items-center gap-2">
-          <Text className="text-white text-base font-['Inter_SemiBold']">Notifications</Text>
+          <Text className="text-white text-base font-['Inter-SemiBold']">Notifications</Text>
           {unreadCount > 0 && (
             <View className="bg-[#00C853] rounded-full w-5 h-5 items-center justify-center">
-              <Text className="text-black text-xs font-['Inter_SemiBold']">{unreadCount}</Text>
+              <Text className="text-black text-xs font-['Inter-SemiBold']">{unreadCount}</Text>
             </View>
           )}
         </View>
@@ -145,9 +101,9 @@ export default function NotificationsScreen() {
       {notifications.length === 0 ? (
         <View className="flex-1 items-center justify-center px-8">
           <Bell size={56} color="rgba(255,255,255,0.15)" />
-          <Text className="text-white text-lg font-['Inter_SemiBold'] mt-4">All caught up</Text>
+          <Text className="text-white text-lg font-['Inter-SemiBold'] mt-4">All caught up</Text>
           <Text className="text-white/50 text-sm font-['Inter'] text-center mt-2">
-            You have no notifications yet. We'll let you know when something happens.
+            {"You have no notifications yet. We'll let you know when something happens."}
           </Text>
         </View>
       ) : (
@@ -191,7 +147,7 @@ export default function NotificationsScreen() {
                 {/* Content */}
                 <View className="flex-1">
                   <View className="flex-row items-start justify-between mb-0.5">
-                    <Text className="text-white text-sm font-['Inter_SemiBold'] flex-1 mr-2">
+                    <Text className="text-white text-sm font-['Inter-SemiBold'] flex-1 mr-2">
                       {notif.title}
                     </Text>
                     <Text className="text-white/40 text-xs font-['Inter'] flex-shrink-0">

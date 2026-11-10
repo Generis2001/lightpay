@@ -2,6 +2,7 @@
 services:
 - type: web
   name: lightpay-backend
+  branch: deploy/lightpay-backend
   region: oregon
   runtime: docker
   dockerfilePath: ./services/backend/Dockerfile

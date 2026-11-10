@@ -49,6 +49,7 @@ export default function TransactScreen() {
     hasNextPage,
     isFetchingNextPage,
     isLoading,
+    isError,
     refetch,
   } = useInfiniteQuery({
     queryKey: ['transactions', activeFilter, search],
@@ -60,14 +61,16 @@ export default function TransactScreen() {
         ...(search && { search }),
       });
       const { data } = await api.get(`/transactions?${params}`);
-      return data.data;
+      return data;
     },
     getNextPageParam: (lastPage) =>
-      lastPage.meta.hasNextPage ? lastPage.meta.page + 1 : undefined,
+      lastPage.meta.page < lastPage.meta.totalPages ? lastPage.meta.page + 1 : undefined,
     initialPageParam: 1,
   });
 
   const transactions = data?.pages.flatMap((p) => p.data) ?? [];
+
+  if (isError) return <SafeAreaView style={styles.container}><View style={{ padding: 24, gap: 16 }}><Text style={styles.title}>Transactions</Text><Text>Could not load transaction history.</Text><TouchableOpacity onPress={() => refetch()}><Text style={{ color: '#005828' }}>Try again</Text></TouchableOpacity></View></SafeAreaView>;
 
   const groupByDate = (txs: TransactionListItem[]) => {
     const groups: { date: string; items: TransactionListItem[] }[] = [];

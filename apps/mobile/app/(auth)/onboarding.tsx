@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/Button';
 import { Colors, Gradients } from '@/constants/colors';
 import { FontFamily, FontSize } from '@/constants/typography';
 import { useAuthStore } from '@/store/auth';
+import { CurrencyIcon } from '@/components/ui/CurrencyIcon';
 
 const { width } = Dimensions.get('window');
 
@@ -30,21 +31,21 @@ const SLIDES = [
     id: '1',
     emoji: '💳',
     title: 'One Wallet,\nEvery Currency',
-    subtitle: 'Manage Naira, Dollars, and Crypto from a single, beautiful app.',
+    subtitle: 'Manage your Naira wallet and explore supported crypto networks.',
     gradient: ['#003D20', '#00C853'] as const,
   },
   {
     id: '2',
     emoji: '⚡',
     title: 'Send Money\nIn Seconds',
-    subtitle: 'Transfer to any Nigerian bank instantly. No delays, no surprises.',
+    subtitle: 'Choose a bank, verify the recipient, and review your transfer before sending.',
     gradient: ['#0D1B2A', '#1A4A7A'] as const,
   },
   {
     id: '3',
     emoji: '₿',
-    title: 'Crypto ↔ Cash,\nJust Like That',
-    subtitle: 'Convert Bitcoin to Naira in 3 taps. No complicated exchanges.',
+    title: 'Your Crypto,\nYour Wallet',
+    subtitle: 'Create or import your wallet for Bitcoin, Ethereum, Solana and BNB. Back up your recovery phrase and keep control of your keys.',
     gradient: ['#1A0D2E', '#6B2FBB'] as const,
   },
 ];
@@ -107,7 +108,7 @@ export default function OnboardingScreen() {
               </TouchableOpacity>
 
               <View style={styles.content}>
-                <Text style={styles.emoji}>{item.emoji}</Text>
+                {item.id === '3' ? <CurrencyIcon currency="BTC" size={80} /> : <Text style={styles.emoji}>{item.emoji}</Text>}
                 <Text style={styles.title}>{item.title}</Text>
                 <Text style={styles.subtitle}>{item.subtitle}</Text>
               </View>

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Tabs } from 'expo-router';
+import { Tabs, Redirect } from 'expo-router';
+import { useAuthStore } from '@/store/auth';
 import { View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -27,6 +28,8 @@ const TabIcon: React.FC<TabIconProps> = ({ focused, icon, focusedIcon, label }) 
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  if (!isAuthenticated) return <Redirect href="/(auth)/login" />;
 
   return (
     <Tabs

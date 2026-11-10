@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Wallet, VirtualAccount, Beneficiary } from '@lightpay/types';
 
 interface WalletState {
+  reset: () => void;
   wallets: Wallet[];
   nairaWallet: Wallet | null;
   dollarWallet: Wallet | null;
@@ -19,6 +20,7 @@ interface WalletState {
 }
 
 export const useWalletStore = create<WalletState>((set, get) => ({
+  reset: () => set({ wallets: [], nairaWallet: null, dollarWallet: null, virtualAccount: null, beneficiaries: [], selectedWallet: null, balanceVisible: true }),
   wallets: [],
   nairaWallet: null,
   dollarWallet: null,

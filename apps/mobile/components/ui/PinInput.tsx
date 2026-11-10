@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '@/lib/haptics';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -17,6 +17,7 @@ interface PinInputProps {
   onChange: (value: string) => void;
   onComplete?: (value: string) => void;
   error?: boolean;
+  disabled?: boolean;
   label?: string;
 }
 
@@ -33,6 +34,7 @@ export const PinInput: React.FC<PinInputProps> = ({
   onChange,
   onComplete,
   error = false,
+  disabled = false,
   label,
 }) => {
   const shake = useSharedValue(0);
@@ -55,6 +57,7 @@ export const PinInput: React.FC<PinInputProps> = ({
   }));
 
   const handleKey = (key: string) => {
+    if (disabled) return;
     if (key === 'del') {
       const newVal = value.slice(0, -1);
       onChange(newVal);
@@ -93,6 +96,8 @@ export const PinInput: React.FC<PinInputProps> = ({
           <View key={rowIndex} style={styles.row}>
             {row.map((key) => (
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={key === 'del' ? 'Delete digit' : key}
                 key={key}
                 style={({ pressed }) => [
                   styles.key,

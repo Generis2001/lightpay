@@ -9,8 +9,8 @@ import {
   Alert,
 } from 'react-native';
 import { router } from 'expo-router';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import * as Haptics from 'expo-haptics';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import * as Haptics from '@/lib/haptics';
 import { Lightning, Television, CaretRight, CaretDown } from 'phosphor-react-native';
 import { api } from '../../lib/api';
 import { ScreenHeader } from '../../components/ui/ScreenHeader';
@@ -39,6 +39,7 @@ const CABLE_PROVIDERS = [
 ];
 
 export default function BillsScreen() {
+  const queryClient = useQueryClient();
   const [billType, setBillType] = useState<BillType>('electricity');
 
   // Electricity state
@@ -93,53 +94,61 @@ export default function BillsScreen() {
   });
 
   const payElectricityMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (enteredPin: string) =>
       api.post('/bills/electricity', {
         meterNumber,
         disco,
         meterType,
         amount: parseFloat(elecAmount),
         customerName: meterInfo?.customerName,
-        pin,
+        pin: enteredPin,
       }),
-    onSuccess: () => {
+    onSuccess: ({ data }) => {
+      const receipt = data.data.transaction ?? data.data;
+      queryClient.invalidateQueries({ queryKey: ['wallets'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace('/(modals)/transfer-success');
+      router.replace({ pathname: '/(modals)/transfer-success', params: { transactionId: receipt.id, reference: receipt.reference, amount: billType === 'electricity' ? elecAmount : String(selectedCablePlan?.amount ?? 0), accountName: billType === 'electricity' ? meterInfo?.customerName : cableCustomer?.customerName, bankName: billType === 'electricity' ? disco : provider, kind: billType === 'electricity' ? 'Electricity payment' : 'Cable payment', status: receipt.status ?? 'processing' } });
     },
     onError: (err: any) => {
       setPinError(err.response?.data?.message ?? 'Payment failed');
+      setPin('');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     },
   });
 
   const payCableMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (enteredPin: string) =>
       api.post('/bills/cable', {
         provider,
         smartCardNumber: smartCard,
         planCode: selectedCablePlan?.code,
         amount: selectedCablePlan?.amount,
         customerName: cableCustomer?.customerName,
-        pin,
+        pin: enteredPin,
       }),
-    onSuccess: () => {
+    onSuccess: ({ data }) => {
+      const receipt = data.data.transaction ?? data.data;
+      queryClient.invalidateQueries({ queryKey: ['wallets'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace('/(modals)/transfer-success');
+      router.replace({ pathname: '/(modals)/transfer-success', params: { transactionId: receipt.id, reference: receipt.reference, amount: billType === 'electricity' ? elecAmount : String(selectedCablePlan?.amount ?? 0), accountName: billType === 'electricity' ? meterInfo?.customerName : cableCustomer?.customerName, bankName: billType === 'electricity' ? disco : provider, kind: billType === 'electricity' ? 'Electricity payment' : 'Cable payment', status: receipt.status ?? 'processing' } });
     },
     onError: (err: any) => {
       setPinError(err.response?.data?.message ?? 'Payment failed');
+      setPin('');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     },
   });
 
   const handleElecPinComplete = (value: string) => {
     setPin(value);
-    if (value.length === 6) payElectricityMutation.mutate();
+    if (value.length === 6) !payElectricityMutation.isPending && payElectricityMutation.mutate(value);
   };
 
   const handleCablePinComplete = (value: string) => {
     setPin(value);
-    if (value.length === 6) payCableMutation.mutate();
+    if (value.length === 6) !payCableMutation.isPending && payCableMutation.mutate(value);
   };
 
   const QUICK_AMOUNTS = [500, 1000, 2000, 5000, 10000];
@@ -171,7 +180,7 @@ export default function BillsScreen() {
           >
             <Icon size={16} color={billType === id ? '#000' : 'rgba(255,255,255,0.5)'} />
             <Text
-              className={`text-sm font-['Inter_Medium'] ${
+              className={`text-sm font-['Inter-Medium'] ${
                 billType === id ? 'text-black' : 'text-white/50'
               }`}
             >
@@ -231,7 +240,7 @@ export default function BillsScreen() {
                       }`}
                     >
                       <Text
-                        className={`font-['Inter_Medium'] capitalize ${
+                        className={`font-['Inter-Medium'] capitalize ${
                           meterType === type ? 'text-[#00C853]' : 'text-white/50'
                         }`}
                       >
@@ -256,7 +265,7 @@ export default function BillsScreen() {
                 {meterInfo && elecStep === 'verify' && (
                   <View className="bg-[#00C853]/10 border border-[#00C853]/30 rounded-2xl p-4 mb-4">
                     <Text className="text-[#00C853] text-xs font-['Inter'] mb-1">Customer Verified</Text>
-                    <Text className="text-white font-['Inter_SemiBold']">{meterInfo.customerName}</Text>
+                    <Text className="text-white font-['Inter-SemiBold']">{meterInfo.customerName}</Text>
                     <Text className="text-white/50 text-xs mt-0.5 font-['Inter']">{meterInfo.address}</Text>
                   </View>
                 )}
@@ -315,7 +324,7 @@ export default function BillsScreen() {
               <View className="items-center pt-4">
                 <View className="bg-[#1C1C2E] rounded-3xl p-5 mb-6 w-full">
                   <Text className="text-white/50 text-xs font-['Inter']">Electricity Payment</Text>
-                  <Text className="text-white text-lg font-['Inter_SemiBold'] mt-1">
+                  <Text className="text-white text-lg font-['Inter-SemiBold'] mt-1">
                     {DISCOS.find((d) => d.id === disco)?.name}
                   </Text>
                   <Text className="text-white/50 text-sm font-['Inter']">
@@ -359,9 +368,9 @@ export default function BillsScreen() {
                         className="w-10 h-10 rounded-xl items-center justify-center"
                         style={{ backgroundColor: p.color }}
                       >
-                        <Text className="text-white font-bold text-xs">{p.name.slice(0, 2)}</Text>
+                        <Television size={20} color="white" />
                       </View>
-                      <Text className="text-white text-base font-['Inter_Medium']">{p.name}</Text>
+                      <Text className="text-white text-base font-['Inter-Medium']">{p.name}</Text>
                     </View>
                     <CaretRight size={18} color="rgba(255,255,255,0.3)" />
                   </TouchableOpacity>
@@ -386,7 +395,7 @@ export default function BillsScreen() {
                       className="flex-row items-center justify-between bg-[#1C1C2E] rounded-2xl px-5 py-4 mb-3"
                     >
                       <Text className="text-white text-base font-['Inter']">{plan.name}</Text>
-                      <Text className="text-[#00C853] font-['Inter_SemiBold']">
+                      <Text className="text-[#00C853] font-['Inter-SemiBold']">
                         ₦{plan.amount.toLocaleString()}
                       </Text>
                     </TouchableOpacity>
@@ -399,8 +408,8 @@ export default function BillsScreen() {
               <>
                 <View className="bg-[#1C1C2E] rounded-2xl p-4 mb-4">
                   <Text className="text-white/50 text-xs font-['Inter']">Selected Plan</Text>
-                  <Text className="text-white font-['Inter_SemiBold']">{selectedCablePlan?.name}</Text>
-                  <Text className="text-[#00C853] font-['Inter_SemiBold']">
+                  <Text className="text-white font-['Inter-SemiBold']">{selectedCablePlan?.name}</Text>
+                  <Text className="text-[#00C853] font-['Inter-SemiBold']">
                     ₦{selectedCablePlan?.amount.toLocaleString()}
                   </Text>
                 </View>
@@ -428,13 +437,13 @@ export default function BillsScreen() {
               <>
                 <View className="bg-[#00C853]/10 border border-[#00C853]/30 rounded-2xl p-4 mb-4">
                   <Text className="text-[#00C853] text-xs font-['Inter'] mb-1">Card Verified</Text>
-                  <Text className="text-white font-['Inter_SemiBold']">{cableCustomer?.customerName}</Text>
+                  <Text className="text-white font-['Inter-SemiBold']">{cableCustomer?.customerName}</Text>
                   <Text className="text-white/50 text-xs mt-0.5 font-['Inter']">Card: {smartCard}</Text>
                 </View>
                 <View className="bg-[#1C1C2E] rounded-2xl p-4 mb-6">
                   <Text className="text-white/50 text-xs font-['Inter']">Plan</Text>
-                  <Text className="text-white font-['Inter_SemiBold']">{selectedCablePlan?.name}</Text>
-                  <Text className="text-[#00C853] font-['Inter_SemiBold'] text-lg">
+                  <Text className="text-white font-['Inter-SemiBold']">{selectedCablePlan?.name}</Text>
+                  <Text className="text-[#00C853] font-['Inter-SemiBold'] text-lg">
                     ₦{selectedCablePlan?.amount.toLocaleString()}
                   </Text>
                 </View>
@@ -446,7 +455,7 @@ export default function BillsScreen() {
               <View className="items-center pt-4">
                 <View className="bg-[#1C1C2E] rounded-3xl p-5 mb-6 w-full">
                   <Text className="text-white/50 text-xs font-['Inter']">Cable TV Subscription</Text>
-                  <Text className="text-white text-lg font-['Inter_SemiBold'] mt-1">
+                  <Text className="text-white text-lg font-['Inter-SemiBold'] mt-1">
                     {provider} · {selectedCablePlan?.name}
                   </Text>
                   <Text className="text-white/50 text-sm font-['Inter']">{cableCustomer?.customerName}</Text>

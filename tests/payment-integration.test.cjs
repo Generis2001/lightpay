@@ -40,7 +40,7 @@ const {
   Transaction,
 } = require("../services/fiat/src/transactions/transaction.entity.ts");
 const { GUARDS_METADATA } = require("@nestjs/common/constants");
-const { CryptoController } = require("../services/fiat/src/crypto/crypto.module.ts");
+const { CryptoController, CryptoModule } = require("../services/fiat/src/crypto/crypto.module.ts");
 const { InternationalController } = require("../services/fiat/src/international/international.module.ts");
 
 async function listen(app) {
@@ -212,6 +212,22 @@ test("all outgoing fiat routes require server PIN validation", () => {
       route,
     );
   }
+});
+
+test('legacy custody cannot provision wallets, quote or send, and its module starts no custody provider or poller', () => {
+  const controller = new CryptoController();
+  for (const asset of controller.assets().data) {
+    assert.equal(asset.mode, 'self-custody');
+    assert.equal(asset.custodyEnabled, false);
+    assert.equal(asset.enabled, false);
+  }
+  for (const method of ['provision', 'quote', 'send']) {
+    assert.throws(() => controller[method]({ user: { sub: 'retirement-fixture' } }, {}), error => error.getStatus() === 410);
+  }
+  const providers = Reflect.getMetadata('providers', CryptoModule);
+  assert.ok(providers.every(provider => ['JwtAuthGuard', 'TransactionPinGuard'].includes(provider.name)));
+  const imports = Reflect.getMetadata('imports', CryptoModule);
+  assert.ok(imports.every(imported => imported.module?.name === 'JwtModule'));
 });
 
 test("PIN verification rejects incorrect, missing and unavailable checks and forwards the user token", async () => {

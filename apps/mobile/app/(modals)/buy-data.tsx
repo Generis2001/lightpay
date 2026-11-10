@@ -9,8 +9,8 @@ import {
   Alert,
 } from 'react-native';
 import { router } from 'expo-router';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import * as Haptics from 'expo-haptics';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import * as Haptics from '@/lib/haptics';
 import { Phone, WifiHigh, CaretLeft, CaretRight } from 'phosphor-react-native';
 import { useAuthStore } from '../../store/auth';
 import { api } from '../../lib/api';
@@ -30,6 +30,7 @@ type Step = 'network' | 'plan' | 'phone' | 'pin';
 
 export default function BuyDataScreen() {
   const { user } = useAuthStore();
+  const queryClient = useQueryClient();
   const [step, setStep] = useState<Step>('network');
   const [selectedNetwork, setSelectedNetwork] = useState<string | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<{ code: string; name: string; amount: number; validity: string; allowance: string } | null>(null);
@@ -45,21 +46,25 @@ export default function BuyDataScreen() {
   });
 
   const purchaseMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (enteredPin: string) =>
       api.post('/bills/data', {
         network: selectedNetwork,
         phone,
         planCode: selectedPlan?.code,
         amount: selectedPlan?.amount,
-        pin,
+        pin: enteredPin,
       }),
-    onSuccess: () => {
+    onSuccess: ({ data }) => {
+      const receipt = data.data.transaction ?? data.data;
+      queryClient.invalidateQueries({ queryKey: ['wallets'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace('/(modals)/transfer-success');
+      router.replace({ pathname: '/(modals)/transfer-success', params: { transactionId: receipt.id, reference: receipt.reference, amount: String(selectedPlan?.amount ?? 0), accountName: phone, bankName: selectedNetwork ?? '', kind: 'Data purchase', status: receipt.status ?? 'processing' } });
     },
     onError: (err: any) => {
       const msg = err.response?.data?.message ?? 'Data purchase failed';
       setPinError(msg);
+      setPin('');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     },
   });
@@ -87,7 +92,7 @@ export default function BuyDataScreen() {
   const handlePinComplete = (value: string) => {
     setPin(value);
     if (value.length === 6) {
-      purchaseMutation.mutate();
+      if (!purchaseMutation.isPending) purchaseMutation.mutate(value);
     }
   };
 
@@ -129,15 +134,8 @@ export default function BuyDataScreen() {
               className="flex-row items-center justify-between bg-[#1C1C2E] rounded-2xl px-5 py-4 mb-3"
             >
               <View className="flex-row items-center gap-3">
-                <View
-                  className="w-10 h-10 rounded-full items-center justify-center"
-                  style={{ backgroundColor: net.color }}
-                >
-                  <Text style={{ color: net.textColor }} className="font-bold text-xs">
-                    {net.label.slice(0, 3).toUpperCase()}
-                  </Text>
-                </View>
-                <Text className="text-white text-base font-['Inter_Medium']">{net.label}</Text>
+
+                <Text className="text-white text-base font-['Inter-Medium']">{net.label}</Text>
               </View>
               <CaretRight size={18} color="rgba(255,255,255,0.3)" />
             </TouchableOpacity>
@@ -161,14 +159,14 @@ export default function BuyDataScreen() {
                   className="flex-row items-center justify-between bg-[#1C1C2E] rounded-2xl px-5 py-4 mb-3"
                 >
                   <View>
-                    <Text className="text-white text-base font-['Inter_SemiBold']">
+                    <Text className="text-white text-base font-['Inter-SemiBold']">
                       {plan.allowance}
                     </Text>
                     <Text className="text-white/50 text-xs mt-0.5 font-['Inter']">
                       Valid for {plan.validity}
                     </Text>
                   </View>
-                  <Text className="text-[#00C853] text-base font-['Inter_SemiBold']">
+                  <Text className="text-[#00C853] text-base font-['Inter-SemiBold']">
                     ₦{plan.amount.toLocaleString()}
                   </Text>
                 </TouchableOpacity>
@@ -182,10 +180,10 @@ export default function BuyDataScreen() {
         <View className="flex-1 px-5 pt-6">
           <View className="bg-[#1C1C2E] rounded-3xl p-5 mb-6">
             <Text className="text-white/50 text-xs font-['Inter'] mb-1">Selected Plan</Text>
-            <Text className="text-white text-lg font-['Inter_SemiBold']">
+            <Text className="text-white text-lg font-['Inter-SemiBold']">
               {networkObj?.label} {selectedPlan?.allowance}
             </Text>
-            <Text className="text-[#00C853] text-base font-['Inter_Medium'] mt-1">
+            <Text className="text-[#00C853] text-base font-['Inter-Medium'] mt-1">
               ₦{selectedPlan?.amount.toLocaleString()} · {selectedPlan?.validity}
             </Text>
           </View>
@@ -221,7 +219,7 @@ export default function BuyDataScreen() {
         <View className="flex-1 px-5 pt-6 items-center">
           <View className="bg-[#1C1C2E] rounded-3xl p-5 mb-8 w-full">
             <Text className="text-white/50 text-xs font-['Inter'] mb-1">Buying</Text>
-            <Text className="text-white text-lg font-['Inter_SemiBold']">
+            <Text className="text-white text-lg font-['Inter-SemiBold']">
               {networkObj?.label} {selectedPlan?.allowance} for {phone}
             </Text>
             <Text className="text-[#00C853] text-2xl font-['JetBrainsMono'] mt-2">

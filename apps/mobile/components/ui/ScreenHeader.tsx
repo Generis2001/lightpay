@@ -37,7 +37,8 @@ export const ScreenHeader: React.FC<ScreenHeaderProps> = ({
     if (onBack) {
       onBack();
     } else {
-      router.back();
+      if (router.canGoBack()) router.back();
+      else router.replace('/');
     }
   };
 
@@ -51,6 +52,8 @@ export const ScreenHeader: React.FC<ScreenHeaderProps> = ({
       ]}
     >
       <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel={closeMode ? 'Close' : 'Go back'}
         style={styles.backButton}
         onPress={handleBack}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}

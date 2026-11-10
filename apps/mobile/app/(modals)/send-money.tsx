@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { MagnifyingGlass, Star, UserCircle } from 'phosphor-react-native';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
@@ -21,18 +21,20 @@ import { FontFamily, FontSize } from '@/constants/typography';
 import { useWalletStore } from '@/store/wallet';
 import { api } from '@/lib/api';
 import { formatNaira, getInitials } from '@/lib/format';
+import Toast from 'react-native-toast-message';
 import type { Bank, ResolvedBankAccount, Beneficiary } from '@lightpay/types';
 
 type SendStep = 'recipient' | 'amount';
 
 export default function SendMoneyScreen() {
+  const prefill = useLocalSearchParams<{ prefillAccount?: string; prefillBankCode?: string; prefillAmount?: string }>();
   const [step, setStep] = useState<SendStep>('recipient');
-  const [bankCode, setBankCode] = useState('');
-  const [accountNumber, setAccountNumber] = useState('');
+  const [bankCode, setBankCode] = useState(prefill.prefillBankCode ?? '');
+  const [accountNumber, setAccountNumber] = useState(prefill.prefillAccount ?? '');
   const [resolvedAccount, setResolvedAccount] = useState<ResolvedBankAccount | null>(null);
   const [resolving, setResolving] = useState(false);
   const [resolveError, setResolveError] = useState<string | null>(null);
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState(prefill.prefillAmount ?? '');
   const [narration, setNarration] = useState('');
   const [selectedBank, setSelectedBank] = useState<Bank | null>(null);
   const [showBankPicker, setShowBankPicker] = useState(false);
@@ -53,10 +55,16 @@ export default function SendMoneyScreen() {
     b.name.toLowerCase().includes(bankSearch.toLowerCase())
   );
 
+  useEffect(() => {
+    if (prefill.prefillBankCode && banks.length) {
+      setSelectedBank(banks.find((bank) => bank.code === prefill.prefillBankCode) ?? null);
+    }
+  }, [banks, prefill.prefillBankCode]);
+
   const favourites = beneficiaries.filter((b) => b.isFavourite && b.type === 'bank').slice(0, 4);
   const recentBeneficiaries = beneficiaries.filter((b) => b.type === 'bank').slice(0, 6);
 
-  const debounceTimer = useRef<ReturnType<typeof setTimeout>>();
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const resolveAccount = useCallback((accNum: string, bCode: string) => {
     if (accNum.length !== 10 || !bCode) return;
@@ -108,7 +116,15 @@ export default function SendMoneyScreen() {
   const handleProceed = () => {
     if (!resolvedAccount || !amount) return;
     const parsedAmount = parseFloat(amount.replace(/,/g, ''));
-    if (isNaN(parsedAmount) || parsedAmount <= 0) return;
+    if (!Number.isFinite(parsedAmount) || parsedAmount < 100) {
+      Toast.show({ type: 'error', text1: 'Minimum transfer is ₦100' });
+      return;
+    }
+    const fee = parsedAmount > 50000 ? 50 : parsedAmount > 5000 ? 25 : 10.75;
+    if (!nairaWallet || parsedAmount + fee > Number(nairaWallet.balance)) {
+      Toast.show({ type: 'error', text1: 'Insufficient balance', text2: 'The amount and fee must fit within your available balance.' });
+      return;
+    }
 
     router.push({
       pathname: '/(modals)/confirm-transfer',
@@ -125,10 +141,11 @@ export default function SendMoneyScreen() {
   };
 
   const formatAmountInput = (val: string) => {
-    const digits = val.replace(/[^\d]/g, '');
-    if (!digits) return '';
-    const num = parseInt(digits, 10);
-    return num.toLocaleString('en-NG');
+    const raw = val.replace(/[^\d.]/g, '');
+    if (!raw) return '';
+    const [whole = '', fraction = ''] = raw.split('.');
+    const formatted = Number(whole || '0').toLocaleString('en-NG');
+    return raw.includes('.') ? `${formatted}.${fraction.slice(0, 2)}` : formatted;
   };
 
   if (step === 'amount') {
