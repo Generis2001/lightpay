@@ -88,7 +88,17 @@ export class OtpService {
           api_key: apiKey,
         }),
       });
-      if (!response.ok) throw new Error('SMS delivery was rejected');
+      if (!response.ok) {
+        const rejection: unknown = await response.json();
+        if (rejection && typeof rejection === 'object') {
+          const details = rejection as { code?: unknown; message?: unknown };
+          if (details.code === 'SENDER_ID_NOT_APPROVED' ||
+              (typeof details.message === 'string' && details.message.includes('SENDER_ID_NOT_APPROVED'))) {
+            throw new ServiceUnavailableException('Phone verification is awaiting activation. Please use email to continue.');
+          }
+        }
+        throw new Error('SMS delivery was rejected');
+      }
       const result: unknown = await response.json();
       if (!result || typeof result !== 'object') throw new Error('SMS delivery was not acknowledged');
       const acknowledgement = result as { message_id?: unknown; code?: unknown };
@@ -96,7 +106,8 @@ export class OtpService {
           (acknowledgement.code !== undefined && acknowledgement.code !== 'ok')) {
         throw new Error('SMS delivery was not acknowledged');
       }
-    } catch {
+    } catch (error) {
+      if (error instanceof ServiceUnavailableException) throw error;
       throw new ServiceUnavailableException('Unable to send your SMS verification code. Please try again or use email.');
     }
   }

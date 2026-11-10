@@ -241,6 +241,7 @@ test('an invalid or insecure Termii URL never receives credentials or leaves a u
 test('SMS rejection and missing acknowledgement remove the issued code', async t => {
   for (const failure of [
     { name: 'invalid credentials', status: 401, body: { message: 'private provider details' } },
+    { name: 'sender awaiting approval', status: 422, body: { message: 'SENDER_ID_NOT_APPROVED: private provider details' } },
     { name: 'quota exhaustion', status: 429, body: {} },
     { name: 'missing acknowledgement', status: 200, body: {} },
     { name: 'null acknowledgement', status: 200, body: null },
@@ -253,6 +254,7 @@ test('SMS rejection and missing acknowledgement remove the issued code', async t
         await assert.rejects(service.sendOtp({ identifier: '+2348012345678', method: 'phone', purpose: 'registration' }), error => {
           assert.equal(error.getStatus(), 503);
           assert.match(error.message, /use email/);
+          if (failure.name === 'sender awaiting approval') assert.match(error.message, /awaiting activation/);
           assert.doesNotMatch(error.message, /private provider details/);
           return true;
         });
